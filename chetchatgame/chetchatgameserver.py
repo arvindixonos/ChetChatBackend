@@ -125,7 +125,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Find Game for User: {}".format(self.getusername(sid)))
         print("MAIN MOMO: Adding User: {} to searching queue".format(self.getusername(sid)))
         print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
-<<<<<<< HEAD
         self.searchingusers[sid] = findinfos
         users_finding_game = self.getappropriateuser(sid)
         if users_finding_game is not None:
@@ -137,19 +136,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             self.connectedusers[user2]['assignedsessionid'] = sessionid
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[0])
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[1])
-=======
-        self.searchingusers.append(sid)
-        #users_finding_game = self.getgamesession()
-        # if users_finding_game is not None:
-        #     user1 = users_finding_game[0]
-        #     user2 = users_finding_game[1]
-        #     sessioninfo = self.creategamesession(user1, user2)
-        #     sessionid = sessioninfo['sessionid']
-        #     self.connectedusers[user1]['assignedsessionid'] = sessionid
-        #     self.connectedusers[user2]['assignedsessionid'] = sessionid
-        #     await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[0])
-        #     await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[1])
->>>>>>> 08c319a8e42fc61ba356c2f96119559625874453
         pass
 
     async def on_cancel_find_game(self, sid):
