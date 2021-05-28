@@ -147,6 +147,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
 
     def calculatedistancebetweenlocations(self, loc1, loc2):
+        print('Distance: ',hs.haversine(loc1, loc2))
         return hs.haversine(loc1, loc2)
 
     def getappropriateuser(self, sid):
@@ -233,6 +234,16 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 await self.sio.emit('opponent_message', data=sessionmessagedict, room=users[0])
             if users[1] != sid:
                 await self.sio.emit('opponent_message', data=sessionmessagedict, room=users[1])
+        pass
+
+    async def on_play_now(self, sid,sessionid):
+        if sessionid in self.activegamesessions:
+            gamesession = self.activegamesessions[sessionid]
+            users = gamesession.getsessionusers()
+            if users[0] != sid:
+                await self.sio.emit('play_now_clicked', room=users[0])
+            if users[1] != sid:
+                await self.sio.emit('play_now_clicked', room=users[1])
         pass
 
     async def on_session_complete(self, sid, sessionid):
