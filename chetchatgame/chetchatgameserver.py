@@ -86,6 +86,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['assignedsessionid'] = ''
             userdict['lat'] = 0
             userdict['lon'] = 0
+            userdict['ingame'] = False
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -98,27 +99,29 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return self.connectedusers[sid]['name']
         return ""
 
-    async def on_set_location(self, sid, location):
+    async def on_update_location(self, sid, findinfos):
         if sid in self.connectedusers:
-            self.connectedusers[sid]['lat']= location['lat']
-            self.connectedusers[sid]['lon'] = location['lon']
-            print("MAIN MOMO: User:{}".format(self.connectedusers[sid]['name']))
-            print("MAIN MOMO: lat:{} ".format(self.connectedusers[sid]['lat']))
-            print("MAIN MOMO: lon:{} ".format(self.connectedusers[sid]['lon']))
+            self.connectedusers[sid]['lat'] = findinfos['lat']
+            self.connectedusers[sid]['lon'] = findinfos['lon']
 
-        if len(self.searchingusers) >= 1:
+    async def on_get_players(self, sid):
+        if sid in self.connectedusers:
+            print('Getting Info')
+            targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
             returnusersdict = {}
-            locationdict = {'lat': 0, 'lon': 0}
-            for user in self.searchingusers:
-                if user in self.connectedusers:
+            locationdict = {'name': 'new', 'distance': 0}
+            for user in self.connectedusers:
+                if not self.connectedusers[user]['ingame']:
                     if sid != user:
                         print(user)
-                        locationdict['lat'] = self.connectedusers[user]['lat']
-                        locationdict['lon'] = self.connectedusers[user]['lon']
-                        returnusersdict[user] = locationdict
-                        print("Addded")
-                        print(returnusersdict[user])
-            await self.sio.emit('get_location', data=returnusersdict)
+                        otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
+                        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
+                            locationdict['name'] = self.connectedusers[user]['name']
+                            locationdict['distance'] = self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)
+                            returnusersdict[user] = locationdict
+                            print("Addded")
+                            print(returnusersdict[user])
+            await self.sio.emit('get_player_list', data=returnusersdict)
 
     # GAME SERVER
     async def on_find_game(self, sid, findinfos):
@@ -133,7 +136,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             sessioninfo = self.creategamesession(user1, user2)
             sessionid = sessioninfo['sessionid']
             self.connectedusers[user1]['assignedsessionid'] = sessionid
+            self.connectedusers[user1]['ingame'] = True
             self.connectedusers[user2]['assignedsessionid'] = sessionid
+            self.connectedusers[user2]['ingame'] = True
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[0])
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[1])
         pass
@@ -147,7 +152,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
 
     def calculatedistancebetweenlocations(self, loc1, loc2):
-        print('Distance: ',hs.haversine(loc1, loc2))
+        print('Distance: ', hs.haversine(loc1, loc2))
         return hs.haversine(loc1, loc2)
 
     def getappropriateuser(self, sid):
@@ -261,9 +266,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             if user1 in self.connectedusers:
                 self.connectedusers[user1]['assignedsessionid'] = ''
+                self.connectedusers[user1]['ingame'] = False
 
             if user2 in self.connectedusers:
                 self.connectedusers[user2]['assignedsessionid'] = ''
+                self.connectedusers[user2]['ingame'] = False
 
             sessionresult = gamesession.getsessionresult()
             print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
