@@ -3,7 +3,7 @@ import haversine as hs
 import firebase_admin
 from firebase_admin import credentials, auth
 from chetchatgame import gamesession
-
+import collections
 
 class ChetChatGameServer(socketio.AsyncNamespace):
     sio = None
@@ -108,19 +108,27 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             print('Getting Info')
             targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
+            sorteddict = {}
             returnusersdict = {}
-            locationdict = {'name': 'new', 'distance': 0}
+            locationdict = {'sid': 0, 'name': 'new'}
             for user in self.connectedusers:
                 if not self.connectedusers[user]['ingame']:
                     if sid != user:
                         print(user)
                         otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
                         if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
+                            locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
-                            locationdict['distance'] = self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)
-                            returnusersdict[user] = locationdict
-                            print("Addded")
-                            print(returnusersdict[user])
+                            sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(locationdict)
+                            print("Added")
+                            print(sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)])
+
+            if sorteddict:
+                i = 0
+                sorteddict = collections.OrderedDict(sorted(sorteddict.items()))
+                for k, v in sorteddict.items():
+                    returnusersdict[i] = v
+                    i = i + 1
             await self.sio.emit('get_player_list', data=returnusersdict)
 
     # GAME SERVER
@@ -152,7 +160,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
 
     def calculatedistancebetweenlocations(self, loc1, loc2):
-        print('Distance: ', hs.haversine(loc1, loc2))
+        #print('Distance: ', hs.haversine(loc1, loc2))
         return hs.haversine(loc1, loc2)
 
     def getappropriateuser(self, sid):
