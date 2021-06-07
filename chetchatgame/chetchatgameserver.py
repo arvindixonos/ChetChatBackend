@@ -5,6 +5,7 @@ from firebase_admin import credentials, auth
 from chetchatgame import gamesession
 import collections
 
+
 class ChetChatGameServer(socketio.AsyncNamespace):
     sio = None
     connectedusers = {}
@@ -45,6 +46,13 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             self.offeredservices.pop(sid)
         if sid in self.connectedusers:
             print("MAIN MOMO: Removing User: {} from MOMO: {}".format(self.getusername(sid), sid))
+
+            if self.connectedusers[sid]['receivedrequest'] and not self.connectedusers[sid]['ingame']:
+                print("MAIN MOMO: User Disconnected while Game request")
+                otherplayer = {}
+                otherplayer['sid'] = self.connectedusers[sid]['otherplayersid']
+                await self.on_request_rejected(sid, otherplayer)
+
             userinfo = self.connectedusers.pop(sid)
             sessionid = userinfo['assignedsessionid']
             if sessionid in self.activegamesessions:
@@ -86,7 +94,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['assignedsessionid'] = ''
             userdict['lat'] = 0
             userdict['lon'] = 0
+            userdict['receivedrequest'] = False
             userdict['ingame'] = False
+            userdict['otherplayersid'] = ''
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -98,6 +108,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             return self.connectedusers[sid]['name']
         return ""
+
+    # GAME SERVER
 
     async def on_update_location(self, sid, findinfos):
         if sid in self.connectedusers:
@@ -112,26 +124,76 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             returnusersdict = {}
             locationdict = {'sid': 0, 'name': 'new'}
             for user in self.connectedusers:
-                if not self.connectedusers[user]['ingame']:
+                if not self.connectedusers[user]['receivedrequest']:
                     if sid != user:
                         print(user)
                         otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
-                        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
+                        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[
+                            1] != 0.0:
                             locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
-                            sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(locationdict)
+                            sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
+                                locationdict)
                             print("Added")
                             print(sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)])
-
             if sorteddict:
                 i = 0
                 sorteddict = collections.OrderedDict(sorted(sorteddict.items()))
                 for k, v in sorteddict.items():
                     returnusersdict[i] = v
                     i = i + 1
-            await self.sio.emit('get_player_list', data=returnusersdict)
+            print('Return Dict', returnusersdict)
+            await self.sio.emit('get_player_list', data=returnusersdict, room=sid)
 
-    # GAME SERVER
+    async def on_send_game_request(self, sid, otherplayerdict):
+        if sid in self.connectedusers:
+            otherplayersid = otherplayerdict['sid']
+            self.connectedusers[sid]['receivedrequest'] = True
+            self.connectedusers[sid]['otherplayersid'] = otherplayersid
+            print('Other Player: ',self.connectedusers[sid]['otherplayersid'])
+            if otherplayersid in self.connectedusers:
+                if not self.connectedusers[otherplayersid]['receivedrequest']:
+                    self.connectedusers[otherplayersid]['receivedrequest'] = True
+                    self.connectedusers[otherplayersid]['otherplayersid'] = sid
+                    print('Self Player: ', self.connectedusers[otherplayersid]['otherplayersid'])
+                    returnusersdict = {}
+                    returnusersdict['sid'] = sid
+                    returnusersdict['name'] = self.connectedusers[sid]['name']
+                    await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
+
+    async def on_request_rejected(self, sid, otherplayerdict):
+        if sid in self.connectedusers:
+            otherplayersid = otherplayerdict['sid']
+            self.connectedusers[sid]['receivedrequest'] = False
+            self.connectedusers[sid]['otherplayersid'] = ''
+            if otherplayersid in self.connectedusers:
+                self.connectedusers[otherplayersid]['receivedrequest'] = False
+                self.connectedusers[otherplayersid]['otherplayersid'] = ''
+                returnusersdict = {}
+                returnusersdict['sid'] = sid
+                returnusersdict['name'] = self.connectedusers[sid]['name']
+                await self.sio.emit('game_request_rejcted', room=otherplayersid)
+
+    async def on_start_game(self, sid, otherplayer):
+        print('start Clicked')
+        otherplayersid = otherplayer['sid']
+        if sid in self.connectedusers and otherplayersid in self.connectedusers:
+            user1 = sid
+            user2 = otherplayersid
+            print('user1 ', user1)
+            print('user2 ', user2)
+            sessioninfo = self.creategamesession(user1, user2)
+            sessionid = sessioninfo['sessionid']
+            self.connectedusers[user1]['assignedsessionid'] = sessionid
+            self.connectedusers[user1]['ingame'] = True
+            self.connectedusers[user1]['otherplayersid'] = ''
+            self.connectedusers[user2]['assignedsessionid'] = sessionid
+            self.connectedusers[user2]['ingame'] = True
+            self.connectedusers[user2]['otherplayersid'] = ''
+            await self.sio.emit('game_found', data=sessioninfo, room=user1)
+            await self.sio.emit('game_found', data=sessioninfo, room=user2)
+        pass
+
     async def on_find_game(self, sid, findinfos):
         print("MAIN MOMO: Find Game for User: {}".format(self.getusername(sid)))
         print("MAIN MOMO: Adding User: {} to searching queue".format(self.getusername(sid)))
@@ -160,7 +222,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
 
     def calculatedistancebetweenlocations(self, loc1, loc2):
-        #print('Distance: ', hs.haversine(loc1, loc2))
+        # print('Distance: ', hs.haversine(loc1, loc2))
         return hs.haversine(loc1, loc2)
 
     def getappropriateuser(self, sid):
@@ -183,7 +245,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     print("Removed User: {} from search queue".format(self.getusername(othersid)))
                     return (othersid, sid)
         return None
-
 
     def creategamesession(self, user1, user2):
         print("MAIN MOMO: Creating game session for Users: {} and {}".format(self.getusername(user1),
@@ -249,7 +310,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 await self.sio.emit('opponent_message', data=sessionmessagedict, room=users[1])
         pass
 
-    async def on_play_now(self, sid,sessionid):
+    async def on_play_now(self, sid, sessionid):
         if sessionid in self.activegamesessions:
             gamesession = self.activegamesessions[sessionid]
             users = gamesession.getsessionusers()
@@ -275,10 +336,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             if user1 in self.connectedusers:
                 self.connectedusers[user1]['assignedsessionid'] = ''
                 self.connectedusers[user1]['ingame'] = False
+                self.connectedusers[user1]['receivedrequest'] = False
 
             if user2 in self.connectedusers:
                 self.connectedusers[user2]['assignedsessionid'] = ''
                 self.connectedusers[user2]['ingame'] = False
+                self.connectedusers[user2]['receivedrequest'] = False
 
             sessionresult = gamesession.getsessionresult()
             print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
