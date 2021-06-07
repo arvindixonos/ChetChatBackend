@@ -48,7 +48,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print("MAIN MOMO: Removing User: {} from MOMO: {}".format(self.getusername(sid), sid))
 
             if self.connectedusers[sid]['receivedrequest'] and not self.connectedusers[sid]['ingame']:
-                print("MAIN MOMO: User Disconnected while Game request")
+                print("MAIN MOMO: User: {} Disconnected while Game request".format(self.getusername(sid)))
                 otherplayer = {}
                 otherplayer['sid'] = self.connectedusers[sid]['otherplayersid']
                 await self.on_request_rejected(sid, otherplayer)
@@ -150,9 +150,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             otherplayersid = otherplayerdict['sid']
             self.connectedusers[sid]['receivedrequest'] = True
             self.connectedusers[sid]['otherplayersid'] = otherplayersid
-            print('Other Player: ',self.connectedusers[sid]['otherplayersid'])
+            print("MAIN MOMO: Sent Game Request To User: {}".format(self.getusername(otherplayersid)))
             if otherplayersid in self.connectedusers:
                 if not self.connectedusers[otherplayersid]['receivedrequest']:
+                    print("MAIN MOMO: Recived Game Request From User: {}".format(self.getusername(sid)))
                     self.connectedusers[otherplayersid]['receivedrequest'] = True
                     self.connectedusers[otherplayersid]['otherplayersid'] = sid
                     print('Self Player: ', self.connectedusers[otherplayersid]['otherplayersid'])
@@ -166,13 +167,15 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             otherplayersid = otherplayerdict['sid']
             self.connectedusers[sid]['receivedrequest'] = False
             self.connectedusers[sid]['otherplayersid'] = ''
+            print("MAIN MOMO: User: {} Rejected Game Request ".format(self.getusername(sid)))
+
             if otherplayersid in self.connectedusers:
                 self.connectedusers[otherplayersid]['receivedrequest'] = False
                 self.connectedusers[otherplayersid]['otherplayersid'] = ''
                 returnusersdict = {}
                 returnusersdict['sid'] = sid
                 returnusersdict['name'] = self.connectedusers[sid]['name']
-                await self.sio.emit('game_request_rejcted', room=otherplayersid)
+                await self.sio.emit('game_request_rejected', room=otherplayersid)
 
     async def on_start_game(self, sid, otherplayer):
         print('start Clicked')
@@ -348,3 +351,5 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('game_over', data=sessionresult, room=user1)
             await self.sio.emit('game_over', data=sessionresult, room=user2)
         pass
+
+
