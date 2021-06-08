@@ -3,6 +3,7 @@ import haversine as hs
 import firebase_admin
 from firebase_admin import credentials, auth
 from chetchatgame import gamesession
+from chetchatgame import partygamesession
 import collections
 
 
@@ -11,6 +12,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     connectedusers = {}
     offeredservices = {}
     searchingusers = {}
+    searchingusersfortwovstwo = {}
     activegamesessions = {}
 
     cred = None
@@ -216,6 +218,31 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[1])
         pass
 
+    async def on_find_game_two_vs_two(self, sid, findinfos):
+        print("MAIN MOMO: Find Game for User: {}".format(self.getusername(sid)))
+        print("MAIN MOMO: Adding User: {} to searching queue".format(self.getusername(sid)))
+        print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
+
+        self.searchingusersfortwovstwo[sid] = findinfos
+        if self.searchingusersfortwovstwo is not None and len(self.searchingusersfortwovstwo.keys()) > 1:
+            users = []
+            for user in self.searchingusersfortwovstwo:
+                users.append(user)
+
+            for user in users:
+                self.searchingusersfortwovstwo.pop(user)
+
+            sessioninfo = self.create2vs2gamesession(users)
+            sessionid = sessioninfo['sessionid']
+
+            for user in users:
+                self.connectedusers[user]['assignedsessionid'] = sessionid
+                self.connectedusers[user]['ingame'] = True
+
+            for user in users:
+                await self.sio.emit('2_vs_2_game_found', data=sessioninfo, room=user)
+        pass
+
     async def on_cancel_find_game(self, sid):
         if sid in self.searchingusers:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
@@ -270,15 +297,42 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         retval['sessionid'] = sessionid
         return retval
 
+    def create2vs2gamesession(self, users):
+        sessionid = users[0] + users[1]
+        userid = []
+        username = []
+        print('MAIN MOMO: Creating game session for Users:')
+        for user in users:
+            print('MAIN MOMO:User: {}'.format(self.getusername(user)))
+            userid.append(self.connectedusers[user]['userid'])
+            username.append(self.connectedusers[user]['name'])
+
+        gamesessioninstance = partygamesession.PartyGameSession(sessionID=sessionid, usersid=userid,
+                                                                userssio=users, usersname=username)
+        print("MAIN MOMO: Adding active session: {}".format(sessionid))
+        self.activegamesessions[sessionid] = gamesessioninstance
+
+        retval = {}
+        for user in range(len(users)):
+            retval[user] = {'userid': userid[user]}
+            retval[user] = {'username': username[user]}
+
+        retval['sessionid'] = sessionid
+        return retval
+
     async def on_claim_game_session(self, sid, gamesessionid):
         print("MAIN MOMO: Claiming game session for User: {}".format(self.getusername(sid)))
         gamesession = self.activegamesessions[gamesessionid]
         claimresult = gamesession.claimsession(sid)
+        print("Claim Result", claimresult)
         if claimresult is not None:
-            user1 = claimresult[0]
-            user2 = claimresult[1]
-            await self.sio.emit('start_session', room=user1)
-            await self.sio.emit('start_session', room=user2)
+            for user in claimresult:
+                print('Starting session', user)
+                await self.sio.emit('start_session', room=user)
+            # user1 = claimresult[0]
+            # user2 = claimresult[1]
+            # await self.sio.emit('start_session', room=user1)
+            # await self.sio.emit('start_session', room=user2)
 
     async def on_starting_session(self, sid, sessionid):
         if sessionid in self.activegamesessions:
@@ -317,10 +371,13 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sessionid in self.activegamesessions:
             gamesession = self.activegamesessions[sessionid]
             users = gamesession.getsessionusers()
-            if users[0] != sid:
-                await self.sio.emit('play_now_clicked', room=users[0])
-            if users[1] != sid:
-                await self.sio.emit('play_now_clicked', room=users[1])
+            for user in users:
+                if user != sid:
+                    await self.sio.emit('play_now_clicked', room=user)
+            # if users[0] != sid:
+            #     await self.sio.emit('play_now_clicked', room=users[0])
+            # if users[1] != sid:
+            #     await self.sio.emit('play_now_clicked', room=users[1])
         pass
 
     async def on_session_complete(self, sid, sessionid):
@@ -351,5 +408,3 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('game_over', data=sessionresult, room=user1)
             await self.sio.emit('game_over', data=sessionresult, room=user2)
         pass
-
-
