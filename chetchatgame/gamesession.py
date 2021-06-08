@@ -3,6 +3,7 @@ class GameSession:
     sessionID = None
     userInfos = None
     sessionComplete = False
+    gamemode = ''
 
     def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name):
         self.userInfos = {  'user1id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
@@ -16,6 +17,11 @@ class GameSession:
         self.userInfos[user1sio]['name'] = user1name
         self.userInfos[user2sio]['name'] = user2name
 
+    def setgamemode(self, gamemode):
+        self.gamemode = gamemode
+
+    def getgamemode(self):
+        self.gamemode
 
     def userleft(self, userid):
         self.sessioncomplete(userid)

@@ -3,6 +3,8 @@ class PartyGameSession:
     sessionID = None
     userInfos = None
     sessionComplete = False
+    teamonescore = 0
+    teamtwoscore = 0
 
     def __init__(self, sessionID, usersid, userssio, usersname):
         self.userInfos = {0: {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
@@ -48,6 +50,31 @@ class PartyGameSession:
     def setscore(self, userid, score):
         print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userInfos[userid]['name'], score))
         self.userInfos[userid]['score'] = score
+        users = self.getsessionusers()
+        if userid == self.userInfos[users[0]] or userid == self.userInfos[users[1]]:
+            self.teamonescore += score
+        if userid == self.userInfos[users[2]] or userid == self.userInfos[users[3]]:
+            self.teamtwoscore += score
+
+    def getscore(self, userid):
+        teamname = self.getteamname(userid)
+        ret = {}
+        if teamname == 'teamone':
+            ret['teamscore'] = self.teamonescore
+            ret['opponentscore'] = self.teamtwoscore
+        else:
+            ret['teamscore'] = self.teamtwoscore
+            ret['opponentscore'] = self.teamonescore
+        return ret
+
+
+    def getteamname(self, userid):
+        users = self.getsessionusers()
+        if userid == self.userInfos[users[0]] or userid == self.userInfos[users[1]]:
+            return 'teamone'
+        if userid == self.userInfos[users[2]] or userid == self.userInfos[users[3]]:
+            return 'teamtwo'
+        return None
 
     def sessioncomplete(self, userid):
         print("MAIN MOMO: Session complete for User: {}".format(self.userInfos[userid]['name']))
@@ -65,14 +92,15 @@ class PartyGameSession:
     def getsessionresult(self):
         retdict = {}
         users = self.getsessionusers()
-        if self.userInfos[users[0]]['score'] > self.userInfos[users[1]]['score']:
+
+        if self.teamonescore > self.teamtwoscore:
             retdict['winnersid'] = users[0]
             retdict['winnerscore'] = self.userInfos[users[0]]['score']
             retdict['winneruserid'] = self.userInfos[users[0]]['userid']
             retdict['winnername'] = self.userInfos[users[0]]['name']
         else:
             retdict['winnersid'] = users[1]
-            retdict['winnerscore'] = self.userInfos[users[1]]['score']
-            retdict['winneruserid'] = self.userInfos[users[1]]['userid']
-            retdict['winnername'] = self.userInfos[users[1]]['name']
+            retdict['winnerscore'] = self.userInfos[users[3]]['score']
+            retdict['winneruserid'] = self.userInfos[users[3]]['userid']
+            retdict['winnername'] = self.userInfos[users[3]]['name']
         return retdict

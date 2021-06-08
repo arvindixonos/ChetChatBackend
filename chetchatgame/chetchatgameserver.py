@@ -288,6 +288,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                                                       user1sio=user1, user2sio=user2, user1name=user1name,
                                                       user2name=user2name)
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
+
+        gamesessioninstance.setgamemode('Local')
+
         self.activegamesessions[sessionid] = gamesessioninstance
         retval = {}
         retval['user1id'] = user1id
@@ -310,6 +313,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         gamesessioninstance = partygamesession.PartyGameSession(sessionID=sessionid, usersid=userid,
                                                                 userssio=users, usersname=username)
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
+
+        gamesessioninstance.setgamemode('2vs2')
         self.activegamesessions[sessionid] = gamesessioninstance
 
         retval = {}
@@ -324,15 +329,21 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Claiming game session for User: {}".format(self.getusername(sid)))
         gamesession = self.activegamesessions[gamesessionid]
         claimresult = gamesession.claimsession(sid)
-        print("Claim Result", claimresult)
         if claimresult is not None:
             for user in claimresult:
                 print('Starting session', user)
                 await self.sio.emit('start_session', room=user)
-            # user1 = claimresult[0]
-            # user2 = claimresult[1]
-            # await self.sio.emit('start_session', room=user1)
-            # await self.sio.emit('start_session', room=user2)
+
+    async def on_claim_2vs2_game_session(self, sid, gamesessionid):
+        print("MAIN MOMO: Claiming game session for User: {}".format(self.getusername(sid)))
+        gamesession = self.activegamesessions[gamesessionid]
+        claimresult = gamesession.claimsession(sid)
+        teamname = {}
+        if claimresult is not None:
+            for user in claimresult:
+                print('Starting session', user)
+                teamname['teamname'] = gamesession.getteamname(user)
+                await self.sio.emit('start_session', data=teamname, room=user)
 
     async def on_starting_session(self, sid, sessionid):
         if sessionid in self.activegamesessions:
@@ -349,10 +360,16 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             gamesession = self.activegamesessions[sessionid]
             gamesession.setscore(sid, score)
             users = gamesession.getsessionusers()
-            if users[0] != sid:
-                await self.sio.emit('opponent_score', data=sessionscoredict, room=users[0])
-            if users[1] != sid:
-                await self.sio.emit('opponent_score', data=sessionscoredict, room=users[1])
+
+            if gamesession.getgamemode() == 'Local':
+                if users[0] != sid:
+                    await self.sio.emit('opponent_score', data=sessionscoredict, room=users[0])
+                if users[1] != sid:
+                    await self.sio.emit('opponent_score', data=sessionscoredict, room=users[1])
+            if gamesession.getgamemode() == '2vs2':
+                for user in users:
+                    scoredict = gamesession.getscore(user)
+                    await self.sio.emit('party_score', data=scoredict, room=user)
         pass
 
     async def on_send_message(self, sid, sessionmessagedict):
