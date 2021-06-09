@@ -5,10 +5,10 @@ class GameSession:
     sessionComplete = False
     gamemode = ''
 
-    def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name, gamemode):
+    def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name):
         self.userInfos = {  'user1id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
                             'user2id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False}}
-        self.gamemode = gamemode
+        self.gamemode = 'local'
         self.sessionComplete = False
         self.sessionID = sessionID
         self.userInfos[user1sio] = self.userInfos.pop('user1id')

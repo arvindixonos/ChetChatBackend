@@ -7,7 +7,7 @@ class PartyGameSession:
     teamtwoscore = 0
     gamemode = None
 
-    def __init__(self, sessionID, usersid, userssio, usersname, gamemode):
+    def __init__(self, sessionID, usersid, userssio, usersname):
         self.userInfos = {0: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False, 'team': 'teamone'},
                           1: {'claimed': False, 'complete': False, 'started': False,
@@ -19,7 +19,7 @@ class PartyGameSession:
                           }
         self.sessionComplete = False
         self.sessionID = sessionID
-        self.gamemode = gamemode
+        self.gamemode = '2vs2'
 
         for idx in range(len(userssio)):
             self.userInfos[userssio[idx]] = self.userInfos.pop(idx)
@@ -98,6 +98,7 @@ class PartyGameSession:
 
     def getsessionresult(self):
         retdict = {}
+        print('more: ',self.teamonescore > self.teamtwoscore)
         if self.teamonescore > self.teamtwoscore:
             retdict['winningteam'] = 'teamone'
             retdict['winnerscore'] = self.teamonescore
@@ -105,3 +106,4 @@ class PartyGameSession:
             retdict['winningteam'] = 'teamtwo'
             retdict['winnerscore'] = self.teamtwoscore
         return retdict
+
