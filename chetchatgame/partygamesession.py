@@ -5,22 +5,33 @@ class PartyGameSession:
     sessionComplete = False
     teamonescore = 0
     teamtwoscore = 0
+    gamemode = None
 
-    def __init__(self, sessionID, usersid, userssio, usersname):
-        self.userInfos = {0: {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
-                          1: {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
-                          # 2: {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
-                          # 3: {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False}}
+    def __init__(self, sessionID, usersid, userssio, usersname, gamemode):
+        self.userInfos = {0: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False, 'team': 'teamone'},
+                          1: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False, 'team' : 'teamone'},
+                          2: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False, 'team': 'teamtwo'},
+                          3: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False, 'team': 'teamtwo'}
                           }
         self.sessionComplete = False
         self.sessionID = sessionID
-        i = 0
-        for user in userssio:
-            self.userInfos[user] = self.userInfos.pop(i)
-            self.userInfos[user]['userid'] = usersid[i]
-            self.userInfos[user]['name'] = usersname[i]
-            print("Start Claimed: ", self.userInfos[user]['claimed'])
-            i = i+1
+        self.gamemode = gamemode
+
+        for idx in range(len(userssio)):
+            self.userInfos[userssio[idx]] = self.userInfos.pop(idx)
+            self.userInfos[userssio[idx]]['userid'] = usersid[idx]
+            self.userInfos[userssio[idx]]['name'] = usersname[idx]
+            print("Start Claimed: ", self.userInfos[userssio[idx]]['claimed'])
+
+    def setgamemode(self, gamemode):
+        self.gamemode = gamemode
+
+    def getgamemode(self):
+        return self.gamemode
 
     def userleft(self, userid):
         self.sessioncomplete(userid)
@@ -48,12 +59,14 @@ class PartyGameSession:
         return None
 
     def setscore(self, userid, score):
-        print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userInfos[userid]['name'], score))
+        #print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userInfos[userid]['name'], score))
         self.userInfos[userid]['score'] = score
         users = self.getsessionusers()
-        if userid == self.userInfos[users[0]] or userid == self.userInfos[users[1]]:
+        print('team name: ', self.userInfos[userid]['team'])
+        if self.userInfos[userid]['team'] == 'teamone':
             self.teamonescore += score
-        if userid == self.userInfos[users[2]] or userid == self.userInfos[users[3]]:
+            print('score: ', self.teamonescore)
+        if self.userInfos[userid]['team'] == 'teamtwo':
             self.teamtwoscore += score
 
     def getscore(self, userid):
@@ -67,14 +80,8 @@ class PartyGameSession:
             ret['opponentscore'] = self.teamonescore
         return ret
 
-
     def getteamname(self, userid):
-        users = self.getsessionusers()
-        if userid == self.userInfos[users[0]] or userid == self.userInfos[users[1]]:
-            return 'teamone'
-        if userid == self.userInfos[users[2]] or userid == self.userInfos[users[3]]:
-            return 'teamtwo'
-        return None
+        return self.userInfos[userid]['team']
 
     def sessioncomplete(self, userid):
         print("MAIN MOMO: Session complete for User: {}".format(self.userInfos[userid]['name']))
@@ -91,16 +98,10 @@ class PartyGameSession:
 
     def getsessionresult(self):
         retdict = {}
-        users = self.getsessionusers()
-
         if self.teamonescore > self.teamtwoscore:
-            retdict['winnersid'] = users[0]
-            retdict['winnerscore'] = self.userInfos[users[0]]['score']
-            retdict['winneruserid'] = self.userInfos[users[0]]['userid']
-            retdict['winnername'] = self.userInfos[users[0]]['name']
+            retdict['winningteam'] = 'teamone'
+            retdict['winnerscore'] = self.teamonescore
         else:
-            retdict['winnersid'] = users[1]
-            retdict['winnerscore'] = self.userInfos[users[3]]['score']
-            retdict['winneruserid'] = self.userInfos[users[3]]['userid']
-            retdict['winnername'] = self.userInfos[users[3]]['name']
+            retdict['winningteam'] = 'teamtwo'
+            retdict['winnerscore'] = self.teamtwoscore
         return retdict

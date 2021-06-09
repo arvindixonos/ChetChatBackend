@@ -5,9 +5,10 @@ class GameSession:
     sessionComplete = False
     gamemode = ''
 
-    def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name):
+    def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name, gamemode):
         self.userInfos = {  'user1id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
                             'user2id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False}}
+        self.gamemode = gamemode
         self.sessionComplete = False
         self.sessionID = sessionID
         self.userInfos[user1sio] = self.userInfos.pop('user1id')
@@ -17,11 +18,8 @@ class GameSession:
         self.userInfos[user1sio]['name'] = user1name
         self.userInfos[user2sio]['name'] = user2name
 
-    def setgamemode(self, gamemode):
-        self.gamemode = gamemode
-
     def getgamemode(self):
-        self.gamemode
+        return self.gamemode
 
     def userleft(self, userid):
         self.sessioncomplete(userid)

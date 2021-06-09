@@ -224,7 +224,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
 
         self.searchingusersfortwovstwo[sid] = findinfos
-        if self.searchingusersfortwovstwo is not None and len(self.searchingusersfortwovstwo.keys()) > 1:
+        if self.searchingusersfortwovstwo is not None and len(self.searchingusersfortwovstwo.keys()) > 3:
             users = []
             for user in self.searchingusersfortwovstwo:
                 users.append(user)
@@ -286,10 +286,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         user2name = self.connectedusers[user2]['name']
         gamesessioninstance = gamesession.GameSession(sessionID=sessionid, user1id=user1id, user2id=user2id,
                                                       user1sio=user1, user2sio=user2, user1name=user1name,
-                                                      user2name=user2name)
+                                                      user2name=user2name, gamemode='local')
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
-
-        gamesessioninstance.setgamemode('Local')
 
         self.activegamesessions[sessionid] = gamesessioninstance
         retval = {}
@@ -307,14 +305,17 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print('MAIN MOMO: Creating game session for Users:')
         for user in users:
             print('MAIN MOMO:User: {}'.format(self.getusername(user)))
+            print('user sid: ', user)
+            print('user id: ',self.connectedusers[user]['userid'])
+            print('user name: ', self.connectedusers[user]['name'])
             userid.append(self.connectedusers[user]['userid'])
             username.append(self.connectedusers[user]['name'])
 
         gamesessioninstance = partygamesession.PartyGameSession(sessionID=sessionid, usersid=userid,
-                                                                userssio=users, usersname=username)
+                                                                userssio=users, usersname=username, gamemode='2vs2')
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
 
-        gamesessioninstance.setgamemode('2vs2')
+        #gamesessioninstance.setgamemode('2vs2')
         self.activegamesessions[sessionid] = gamesessioninstance
 
         retval = {}
@@ -343,7 +344,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             for user in claimresult:
                 print('Starting session', user)
                 teamname['teamname'] = gamesession.getteamname(user)
-                await self.sio.emit('start_session', data=teamname, room=user)
+                await self.sio.emit('start_session_2_vs_2', data=teamname, room=user)
 
     async def on_starting_session(self, sid, sessionid):
         if sessionid in self.activegamesessions:
@@ -360,12 +361,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             gamesession = self.activegamesessions[sessionid]
             gamesession.setscore(sid, score)
             users = gamesession.getsessionusers()
-
-            if gamesession.getgamemode() == 'Local':
+            if gamesession.getgamemode() == 'local':
                 if users[0] != sid:
                     await self.sio.emit('opponent_score', data=sessionscoredict, room=users[0])
                 if users[1] != sid:
                     await self.sio.emit('opponent_score', data=sessionscoredict, room=users[1])
+
             if gamesession.getgamemode() == '2vs2':
                 for user in users:
                     scoredict = gamesession.getscore(user)
@@ -410,18 +411,29 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             user1 = sessioncompleteresult[0]
             user2 = sessioncompleteresult[1]
 
-            if user1 in self.connectedusers:
-                self.connectedusers[user1]['assignedsessionid'] = ''
-                self.connectedusers[user1]['ingame'] = False
-                self.connectedusers[user1]['receivedrequest'] = False
+            for user in sessioncompleteresult:
+                self.connectedusers[user]['assignedsessionid'] = ''
+                self.connectedusers[user]['ingame'] = False
+                self.connectedusers[user]['receivedrequest'] = False
 
-            if user2 in self.connectedusers:
-                self.connectedusers[user2]['assignedsessionid'] = ''
-                self.connectedusers[user2]['ingame'] = False
-                self.connectedusers[user2]['receivedrequest'] = False
+            # if user1 in self.connectedusers:
+            #     self.connectedusers[user1]['assignedsessionid'] = ''
+            #     self.connectedusers[user1]['ingame'] = False
+            #     self.connectedusers[user1]['receivedrequest'] = False
+            #
+            # if user2 in self.connectedusers:
+            #     self.connectedusers[user2]['assignedsessionid'] = ''
+            #     self.connectedusers[user2]['ingame'] = False
+            #     self.connectedusers[user2]['receivedrequest'] = False
 
             sessionresult = gamesession.getsessionresult()
-            print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
-            await self.sio.emit('game_over', data=sessionresult, room=user1)
-            await self.sio.emit('game_over', data=sessionresult, room=user2)
+            if gamesession.getgamemode() == 'local':
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                for user in sessioncompleteresult:
+                    await self.sio.emit('game_over', data=sessionresult, room=user)
+
+            if gamesession.getgamemode() == '2vs2':
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                for user in sessioncompleteresult:
+                    await self.sio.emit('game_over_2_vs_2', data=sessionresult, room=user)
         pass
