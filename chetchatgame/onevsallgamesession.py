@@ -1,42 +1,30 @@
-class PartyGameSession:
+class OneVsAllGameSession:
     sessionID = None
     userinfos = None
     sessionComplete = False
-    teamonescore = 0
-    teamtwoscore = 0
     gamemode = None
-    teamonekeys = []
-    teamtwokeys = []
 
     def __init__(self, sessionID, usersid, userssio, usersname):
         self.userinfos = {0: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False, 'team': 'teamone'},
+                              'score': 0, 'bot': False},
                           1: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False, 'team': 'teamone'},
+                              'score': 0, 'bot': False},
                           2: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False, 'team': 'teamtwo'},
+                              'score': 0, 'bot': False},
                           3: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False, 'team': 'teamtwo'}
+                              'score': 0, 'bot': False},
+                          4: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False}
                           }
         self.sessionComplete = False
         self.sessionID = sessionID
-        self.gamemode = '2vs2'
+        self.gamemode = 'onevsall'
 
         for idx in range(len(userssio)):
             self.userinfos[userssio[idx]] = self.userinfos.pop(idx)
             self.userinfos[userssio[idx]]['userid'] = usersid[idx]
             self.userinfos[userssio[idx]]['name'] = usersname[idx]
             print("Start Claimed: ", self.userinfos[userssio[idx]]['claimed'])
-
-        self.fillteamlist()
-
-    def fillteamlist(self):
-        users = self.getsessionusers()
-        for user in users:
-            if self.userinfos[user]['team'] == 'teamone':
-                self.teamonekeys.append(user)
-            if self.userinfos[user]['team'] == 'teamtwo':
-                self.teamtwokeys.append(user)
 
     def setgamemode(self, gamemode):
         self.gamemode = gamemode
@@ -49,7 +37,6 @@ class PartyGameSession:
             self.userinfos[userid]['team'], self.userinfos[userid]['name']))
         self.sessioncomplete(userid)
         self.setscore(userid, -1)
-        self.resetteamname(userid)
 
     def didallclaimsession(self):
         keys = self.userinfos.keys()
@@ -78,39 +65,12 @@ class PartyGameSession:
         self.userinfos[userid]['score'] = score
 
     def getscore(self, userid):
-        self.teamonescore = self.userinfos[self.teamonekeys[0]]['score'] + self.userinfos[self.teamonekeys[1]]['score']
-        self.teamtwoscore = self.userinfos[self.teamtwokeys[0]]['score'] + self.userinfos[self.teamtwokeys[1]]['score']
-        teamname = self.getteamname(userid)
+        users = self.getsessionusers()
         ret = {}
-        if teamname == 'teamone':
-            ret['teamscore'] = self.teamonescore
-            ret['opponentscore'] = self.teamtwoscore
-        else:
-            ret['teamscore'] = self.teamtwoscore
-            ret['opponentscore'] = self.teamonescore
+        for user in users:
+            if userid != user:
+                ret[user] = self.userinfos[user]['score']
         return ret
-
-    def resetteamname(self, userid):
-        self.userinfos[userid]['team'] = ''
-
-    def getteamname(self, userid):
-        return self.userinfos[userid]['team']
-
-    def getteamonecount(self):
-        teamcount = 0
-        users = self.getsessionusers()
-        for user in users:
-            if self.userinfos[user]['team'] == 'teamone':
-                teamcount += 1
-        return teamcount
-
-    def getteamtwocount(self):
-        teamcount = 0
-        users = self.getsessionusers()
-        for user in users:
-            if self.userinfos[user]['team'] == 'teamtwo':
-                teamcount += 1
-        return teamcount
 
     def sessioncomplete(self, userid):
         print("MAIN MOMO: Session complete for User: {}".format(self.userinfos[userid]['name']))
