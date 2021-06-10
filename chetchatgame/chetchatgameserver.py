@@ -43,7 +43,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.searchingusers:
             print("MAIN MOMO: Removing User: {} from searching queue: {}".format(self.getusername(sid), sid))
             self.searchingusers.pop(sid)
-        print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
+            print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
+        if sid in self.searchingusersfortwovstwo:
+            print("MAIN MOMO: Removing User: {} from Party searching queue: {}".format(self.getusername(sid), sid))
+            self.searchingusersfortwovstwo.pop(sid)
+            print("MAIN MOMO: Number of Party Game searching Users: {}".format(len(self.searchingusers)))
         if sid in self.offeredservices:
             self.offeredservices.pop(sid)
         if sid in self.connectedusers:
@@ -259,6 +263,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.searchingusers:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
             self.searchingusers.pop(sid)
+            await self.sio.emit('find_game_cancelled', room=sid)
+        elif sid in self.searchingusersfortwovstwo:
+            print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
+            self.searchingusersfortwovstwo.pop(sid)
             await self.sio.emit('find_game_cancelled', room=sid)
         else:
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
