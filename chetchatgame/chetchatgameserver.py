@@ -57,18 +57,30 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             userinfo = self.connectedusers.pop(sid)
             sessionid = userinfo['assignedsessionid']
+
             if sessionid in self.activegamesessions:
-                print("MAIN MOMO: User: {} has active session, so ending the session: {}".format(self.getusername(sid),
-                                                                                                 sessionid))
                 gamesession = self.activegamesessions[sessionid]
                 gamesession.userleft(sid)
                 users = gamesession.getsessionusers()
-                for user in users:
-                    if user != sid:
-                        print(
-                            "MAIN MOMO: Calling session complete for User: {} because the other player left: {}".format(
-                                self.getusername(user), self.getusername(sid)))
-                        await self.on_session_complete(user, sessionid)
+                if gamesession.getgamemode() == 'local':
+                    for user in users:
+                        if user != sid:
+                            print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
+                                  .format(self.getusername(user), self.getusername(sid)))
+                            await self.on_session_complete(user, sessionid)
+
+                if gamesession.getgamemode() == '2vs2':
+                    for user in users:
+                        if user != sid and user in self.connectedusers:
+                            if gamesession.getteamonecount() < 1 and gamesession.getteamtwocount() > 0:
+                                print("MAIN MOMO:From:Calling session complete since"
+                                      " All the players from Team One left the game")
+                                await self.on_session_complete(user, sessionid)
+                            elif gamesession.getteamtwocount() < 1 and gamesession.getteamonecount() > 0:
+                                print("MAIN MOMO:From:Calling session complete since "
+                                      "All the players from Team Two left the game")
+                                await self.on_session_complete(user, sessionid)
+
 
     async def on_disconnect(self, sid):
         print(f'MAIN MOMO: Client {sid} DISCONNECTED!!!')
@@ -419,23 +431,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sessioncompleteresult is not None:
             print("MAIN MOMO: Removing active User: {} SessionID: {}".format(self.getusername(sid), sessionid))
             self.activegamesessions.pop(sessionid)
-            user1 = sessioncompleteresult[0]
-            user2 = sessioncompleteresult[1]
 
             for user in sessioncompleteresult:
-                self.connectedusers[user]['assignedsessionid'] = ''
-                self.connectedusers[user]['ingame'] = False
-                self.connectedusers[user]['receivedrequest'] = False
-
-            # if user1 in self.connectedusers:
-            #     self.connectedusers[user1]['assignedsessionid'] = ''
-            #     self.connectedusers[user1]['ingame'] = False
-            #     self.connectedusers[user1]['receivedrequest'] = False
-            #
-            # if user2 in self.connectedusers:
-            #     self.connectedusers[user2]['assignedsessionid'] = ''
-            #     self.connectedusers[user2]['ingame'] = False
-            #     self.connectedusers[user2]['receivedrequest'] = False
+                if user in self.connectedusers:
+                    self.connectedusers[user]['assignedsessionid'] = ''
+                    self.connectedusers[user]['ingame'] = False
+                    self.connectedusers[user]['receivedrequest'] = False
 
             sessionresult = gamesession.getsessionresult()
             if gamesession.getgamemode() == 'local':

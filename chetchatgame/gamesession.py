@@ -22,6 +22,8 @@ class GameSession:
         return self.gamemode
 
     def userleft(self, userid):
+        print("MAIN MOMO: User: {} has active session, so ending the session: {}"
+              .format(self.userInfos[userid]['name'], self.sessionID))
         self.sessioncomplete(userid)
         self.setscore(userid, -1)
 

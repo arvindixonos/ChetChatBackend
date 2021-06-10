@@ -1,17 +1,18 @@
-
 class PartyGameSession:
     sessionID = None
-    userInfos = None
+    userinfos = None
     sessionComplete = False
     teamonescore = 0
     teamtwoscore = 0
     gamemode = None
+    teamonekeys = []
+    teamtwokeys = []
 
     def __init__(self, sessionID, usersid, userssio, usersname):
-        self.userInfos = {0: {'claimed': False, 'complete': False, 'started': False,
+        self.userinfos = {0: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False, 'team': 'teamone'},
                           1: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False, 'team' : 'teamone'},
+                              'score': 0, 'bot': False, 'team': 'teamone'},
                           2: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False, 'team': 'teamtwo'},
                           3: {'claimed': False, 'complete': False, 'started': False,
@@ -22,10 +23,20 @@ class PartyGameSession:
         self.gamemode = '2vs2'
 
         for idx in range(len(userssio)):
-            self.userInfos[userssio[idx]] = self.userInfos.pop(idx)
-            self.userInfos[userssio[idx]]['userid'] = usersid[idx]
-            self.userInfos[userssio[idx]]['name'] = usersname[idx]
-            print("Start Claimed: ", self.userInfos[userssio[idx]]['claimed'])
+            self.userinfos[userssio[idx]] = self.userinfos.pop(idx)
+            self.userinfos[userssio[idx]]['userid'] = usersid[idx]
+            self.userinfos[userssio[idx]]['name'] = usersname[idx]
+            print("Start Claimed: ", self.userinfos[userssio[idx]]['claimed'])
+
+        self.fillteamlist()
+
+    def fillteamlist(self):
+        users = self.getsessionusers()
+        for user in users:
+            if self.userinfos[user]['team'] == 'teamone':
+                self.teamonekeys.append(user)
+            if self.userinfos[user]['team'] == 'teamtwo':
+                self.teamtwokeys.append(user)
 
     def setgamemode(self, gamemode):
         self.gamemode = gamemode
@@ -34,42 +45,42 @@ class PartyGameSession:
         return self.gamemode
 
     def userleft(self, userid):
+        print("MAIN MOMO:From: {} player: {} left the game".format(
+            self.userinfos[userid]['team'], self.userinfos[userid]['name']))
         self.sessioncomplete(userid)
         self.setscore(userid, -1)
+        self.resetteamname(userid)
 
     def didallclaimsession(self):
-        keys = self.userInfos.keys()
+        keys = self.userinfos.keys()
         print("All users: ", keys)
         for key in keys:
-            if self.userInfos[key]['claimed'] is False:
+            if self.userinfos[key]['claimed'] is False:
                 return False
         return True
 
     def didallcompletesession(self):
-        keys = self.userInfos.keys()
+        keys = self.userinfos.keys()
         for key in keys:
-            if self.userInfos[key]['complete'] is False:
+            if self.userinfos[key]['complete'] is False:
                 return False
         return True
 
     def claimsession(self, userid):
-        self.userInfos[userid]['claimed'] = True
+        self.userinfos[userid]['claimed'] = True
         if self.didallclaimsession():
             return self.getsessionusers()
         return None
 
     def setscore(self, userid, score):
-        #print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userInfos[userid]['name'], score))
-        self.userInfos[userid]['score'] = score
-        users = self.getsessionusers()
-        print('team name: ', self.userInfos[userid]['team'])
-        if self.userInfos[userid]['team'] == 'teamone':
-            self.teamonescore += score
-            print('score: ', self.teamonescore)
-        if self.userInfos[userid]['team'] == 'teamtwo':
-            self.teamtwoscore += score
+        print('MAIN MOMO: Setting score for {}'.format(self.userinfos[userid]['team']))
+        print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userinfos[userid]['name'], score))
+        self.userinfos[userid]['score'] = score
+
 
     def getscore(self, userid):
+        self.teamonescore = self.userinfos[self.teamonekeys[0]]['score'] + self.userinfos[self.teamonekeys[1]]['score']
+        self.teamtwoscore = self.userinfos[self.teamtwokeys[0]]['score'] + self.userinfos[self.teamtwokeys[1]]['score']
         teamname = self.getteamname(userid)
         ret = {}
         if teamname == 'teamone':
@@ -80,25 +91,44 @@ class PartyGameSession:
             ret['opponentscore'] = self.teamonescore
         return ret
 
+    def resetteamname(self, userid):
+        self.userinfos[userid]['team'] = ''
+
     def getteamname(self, userid):
-        return self.userInfos[userid]['team']
+        return self.userinfos[userid]['team']
+
+    def getteamonecount(self):
+        teamcount = 0
+        users = self.getsessionusers()
+        for user in users:
+            if self.userinfos[user]['team'] == 'teamone':
+                teamcount += 1
+        return teamcount
+
+    def getteamtwocount(self):
+        teamcount = 0
+        users = self.getsessionusers()
+        for user in users:
+            if self.userinfos[user]['team'] == 'teamtwo':
+                teamcount += 1
+        return teamcount
 
     def sessioncomplete(self, userid):
-        print("MAIN MOMO: Session complete for User: {}".format(self.userInfos[userid]['name']))
-        self.userInfos[userid]['complete'] = True
+        print("MAIN MOMO: Session complete for User: {}".format(self.userinfos[userid]['name']))
+        self.userinfos[userid]['complete'] = True
         if self.didallcompletesession():
             return self.getsessionusers()
         return None
 
     def sessionstart(self, userid):
-        self.userInfos[userid]['started'] = True
+        self.userinfos[userid]['started'] = True
 
     def getsessionusers(self):
-        return list(self.userInfos.keys())
+        return list(self.userinfos.keys())
 
     def getsessionresult(self):
         retdict = {}
-        print('more: ',self.teamonescore > self.teamtwoscore)
+        print('more: ', self.teamonescore > self.teamtwoscore)
         if self.teamonescore > self.teamtwoscore:
             retdict['winningteam'] = 'teamone'
             retdict['winnerscore'] = self.teamonescore
@@ -106,4 +136,3 @@ class PartyGameSession:
             retdict['winningteam'] = 'teamtwo'
             retdict['winnerscore'] = self.teamtwoscore
         return retdict
-
