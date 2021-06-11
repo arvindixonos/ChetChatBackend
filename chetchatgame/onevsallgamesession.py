@@ -1,8 +1,12 @@
+import operator
+import collections
+
 class OneVsAllGameSession:
     sessionID = None
     userinfos = None
     sessionComplete = False
     gamemode = None
+    sessionplayercount = 0
 
     def __init__(self, sessionID, usersid, userssio, usersname):
         self.userinfos = {0: {'claimed': False, 'complete': False, 'started': False,
@@ -15,6 +19,7 @@ class OneVsAllGameSession:
         self.sessionComplete = False
         self.sessionID = sessionID
         self.gamemode = 'onevsall'
+        self.sessionplayercount = len(userssio)
 
         for idx in range(len(userssio)):
             self.userinfos[userssio[idx]] = self.userinfos.pop(idx)
@@ -28,11 +33,17 @@ class OneVsAllGameSession:
     def getgamemode(self):
         return self.gamemode
 
+    def reduceplayercount(self):
+        self.sessionplayercount -= 1
+
+    def getsessionplayercount(self):
+        return self.sessionplayercount
+
     def userleft(self, userid):
-        print("MAIN MOMO:From: {} player: {} left the game".format(
-            self.userinfos[userid]['team'], self.userinfos[userid]['name']))
+        print("MAIN MOMO:From:Player: {} left the game".format(self.userinfos[userid]['name']))
         self.sessioncomplete(userid)
         self.setscore(userid, -1)
+        self.reduceplayercount()
 
     def didallclaimsession(self):
         keys = self.userinfos.keys()
@@ -56,7 +67,6 @@ class OneVsAllGameSession:
         return None
 
     def setscore(self, userid, score):
-        print('MAIN MOMO: Setting score for {}'.format(self.userinfos[userid]['team']))
         print("MAIN MOMO: Setting score for User: {}, SCORE: {}".format(self.userinfos[userid]['name'], score))
         self.userinfos[userid]['score'] = score
 
@@ -82,12 +92,22 @@ class OneVsAllGameSession:
         return list(self.userinfos.keys())
 
     def getsessionresult(self):
+        score = {}
         retdict = {}
-        print('more: ', self.teamonescore > self.teamtwoscore)
-        if self.teamonescore > self.teamtwoscore:
-            retdict['winningteam'] = 'teamone'
-            retdict['winnerscore'] = self.teamonescore
-        else:
-            retdict['winningteam'] = 'teamtwo'
-            retdict['winnerscore'] = self.teamtwoscore
+
+        users = self.getsessionusers()
+        for user in users:
+            print('user name: {} score: {}'.format(self.userinfos[user]['name'], self.userinfos[user]['score']))
+            score[user] = self.userinfos[user]['score']
+
+        sorted_x = sorted(score.items(), key=operator.itemgetter(1))
+        sorted_dict = collections.OrderedDict(sorted_x)
+
+        winnerlist = list(sorted_dict.keys())
+        winnerid = winnerlist[len(winnerlist)-1]
+
+        retdict['winnersid'] = winnerid
+        retdict['winnerscore'] = self.userinfos[winnerid]['score']
+        retdict['winneruserid'] = self.userinfos[winnerid]['userid']
+        retdict['winnername'] = self.userinfos[winnerid]['name']
         return retdict

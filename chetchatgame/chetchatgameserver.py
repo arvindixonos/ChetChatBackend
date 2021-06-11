@@ -79,7 +79,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                 if gamesession.getgamemode() == 'local':
                     for user in users:
-                        if user != sid:
+                        if user != sid and user in self.connectedusers:
                             print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
                                   .format(self.getusername(user), self.getusername(sid)))
                             await self.on_session_complete(user, sessionid)
@@ -94,6 +94,14 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                             elif gamesession.getteamtwocount() < 1 and gamesession.getteamonecount() > 0:
                                 print("MAIN MOMO:From:Calling session complete since "
                                       "All the players from Team Two left the game")
+                                await self.on_session_complete(user, sessionid)
+
+                if gamesession.getgamemode() == 'onevsall':
+                    for user in users:
+                        if user != sid and user in self.connectedusers:
+                            if gamesession.getsessionplayercount() < 2:
+                                print("MAIN MOMO: Calling session complete for User: {} because the other players left"
+                                      .format(self.getusername(user)))
                                 await self.on_session_complete(user, sessionid)
 
     async def on_disconnect(self, sid):
@@ -274,7 +282,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
 
         self.searchinguserforonevsall[sid] = findinfos
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 1:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 2:
             users = []
             for user in self.searchinguserforonevsall:
                 users.append(user)
@@ -467,7 +475,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     await self.sio.emit('party_score', data=scoredict, room=user)
 
             if gamesession.getgamemode() == 'onevsall':
+                print("one vs all")
                 for user in users:
+                    print(user)
                     scoredict = gamesession.getscore(user)
                     await self.sio.emit('one_vs_all_score', data=scoredict, room=user)
         pass
@@ -535,4 +545,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
                     await self.sio.emit('game_over_2_vs_2', data=sessionresult, room=user)
+
+            if gamesession.getgamemode() == 'onevsall':
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                for user in sessioncompleteresult:
+                    await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
         pass
