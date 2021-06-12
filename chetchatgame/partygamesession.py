@@ -1,3 +1,5 @@
+from chetchatgame import playerstates as state
+
 class PartyGameSession:
     sessionID = None
     userinfos = None
@@ -20,7 +22,7 @@ class PartyGameSession:
                           }
         self.sessionComplete = False
         self.sessionID = sessionID
-        self.gamemode = '2vs2'
+        self.gamemode = state.GameState.twovstwo
 
         for idx in range(len(userssio)):
             self.userinfos[userssio[idx]] = self.userinfos.pop(idx)

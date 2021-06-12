@@ -1,5 +1,6 @@
 import operator
 import collections
+from chetchatgame import playerstates as state
 
 class OneVsAllGameSession:
     sessionID = None
@@ -18,7 +19,7 @@ class OneVsAllGameSession:
                           }
         self.sessionComplete = False
         self.sessionID = sessionID
-        self.gamemode = 'onevsall'
+        self.gamemode = state.GameState.onevsall
         self.sessionplayercount = len(userssio)
 
         for idx in range(len(userssio)):
