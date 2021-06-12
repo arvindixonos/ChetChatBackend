@@ -50,7 +50,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.searchingusersfortwovstwo:
             print("MAIN MOMO: Removing User: {} from Party searching queue: {}".format(self.getusername(sid), sid))
             self.searchingusersfortwovstwo.pop(sid)
-            #await self.send_two_vs_two_searching_count()
+            await self.send_two_vs_two_searching_count()
             print("MAIN MOMO: Number of Party Game searching Users: {}".format(len(self.searchingusersfortwovstwo)))
 
         if sid in self.searchinguserforonevsall:
@@ -266,7 +266,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusersfortwovstwo)))
 
         self.searchingusersfortwovstwo[sid] = findinfos
-        #await self.send_two_vs_two_searching_count()
+        await self.send_two_vs_two_searching_count()
 
         if self.searchingusersfortwovstwo is not None and len(self.searchingusersfortwovstwo.keys()) > 3:
             users = []
