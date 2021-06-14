@@ -53,6 +53,9 @@ class PartyGameSession:
         self.setscore(userid, -1)
         self.resetteamname(userid)
 
+    def completedsession(self, key):
+        return self.userinfos[key]['complete']
+
     def didallclaimsession(self):
         keys = self.userinfos.keys()
         print("All users: ", keys)

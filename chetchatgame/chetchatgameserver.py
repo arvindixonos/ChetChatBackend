@@ -89,7 +89,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if gamesession.getgamemode() == state.GameState.twovstwo:
                     for user in users:
                         if user != sid and user in self.connectedusers:
-                            if gamesession.getteamonecount() < 1 and gamesession.getteamtwocount() > 0:
+                            if gamesession.completedsession(user):
+                                await self.on_session_complete(user, sessionid)
+                            elif gamesession.getteamonecount() < 1 and gamesession.getteamtwocount() > 0:
                                 print("MAIN MOMO:From:Calling session complete since"
                                       " All the players from Team One left the game")
                                 await self.on_session_complete(user, sessionid)
@@ -286,7 +288,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchinguserforonevsall)))
 
         self.searchinguserforonevsall[sid] = findinfos
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 2:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 4:
             users = []
             for user in self.searchinguserforonevsall:
                 users.append(user)
