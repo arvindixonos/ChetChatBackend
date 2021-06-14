@@ -56,6 +56,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.searchinguserforonevsall:
             print("MAIN MOMO: Removing User: {} from Party searching queue: {}".format(self.getusername(sid), sid))
             self.searchinguserforonevsall.pop(sid)
+            await  self.send_one_vs_all_searching_count()
             print("MAIN MOMO: Number of Party Game searching Users: {}".format(len(self.searchinguserforonevsall)))
 
         if sid in self.offeredservices:
@@ -252,14 +253,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('game_found', data=sessioninfo, room=users_finding_game[1])
         pass
 
-    async  def send_two_vs_two_searching_count(self):
-        ret = {}
-        ret['searchingusers'] = len(self.searchingusersfortwovstwo)
-        for user in self.searchingusersfortwovstwo:
-            if user in self.connectedusers:
-                await self.sio.emit('two_vs_two_player_count', data=ret, room=user)
-        pass
-
     async def on_find_game_two_vs_two(self, sid, findinfos):
         print("MAIN MOMO: Find Game for User: {}".format(self.getusername(sid)))
         print("MAIN MOMO: Adding User: {} to searching queue".format(self.getusername(sid)))
@@ -290,7 +283,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     async def on_find_game_one_vs_all(self, sid, findinfos):
         print("MAIN MOMO: Find Game for User: {}".format(self.getusername(sid)))
         print("MAIN MOMO: Adding User: {} to searching queue".format(self.getusername(sid)))
-        print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchingusers)))
+        print("MAIN MOMO: Number of searching Users: {}".format(len(self.searchinguserforonevsall)))
 
         self.searchinguserforonevsall[sid] = findinfos
         if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 2:
@@ -312,6 +305,20 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 await self.sio.emit('one_vs_all_game_found', data=sessioninfo, room=user)
         pass
 
+    async def send_two_vs_two_searching_count(self):
+        ret = {'searchingusers': len(self.searchingusersfortwovstwo)}
+        for user in self.searchingusersfortwovstwo:
+            if user in self.connectedusers:
+                await self.sio.emit('two_vs_two_player_count', data=ret, room=user)
+        pass
+
+    async def send_one_vs_all_searching_count(self):
+        ret = {'searchingusers': len(self.searchinguserforonevsall)}
+        for user in self.searchinguserforonevsall:
+            if user in self.connectedusers:
+                await self.sio.emit('one_vs_all_player_count', data=ret, room=user)
+        pass
+
     async def on_cancel_find_game(self, sid):
         if sid in self.searchingusers:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
@@ -320,10 +327,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         elif sid in self.searchingusersfortwovstwo:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
             self.searchingusersfortwovstwo.pop(sid)
+            await self.send_two_vs_two_searching_count()
             await self.sio.emit('find_game_cancelled', room=sid)
         elif sid in self.searchinguserforonevsall:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
             self.searchinguserforonevsall.pop(sid)
+            await  self.send_one_vs_all_searching_count()
             await self.sio.emit('find_game_cancelled', room=sid)
         else:
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))

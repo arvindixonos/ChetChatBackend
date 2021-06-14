@@ -15,8 +15,13 @@ class OneVsAllGameSession:
                           1: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False},
                           2: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False}
+                              'score': 0, 'bot': False},
+                          # 3: {'claimed': False, 'complete': False, 'started': False,
+                          #     'score': 0, 'bot': False},
+                          # 4: {'claimed': False, 'complete': False, 'started': False,
+                          #     'score': 0, 'bot': False}
                           }
+
         self.sessionComplete = False
         self.sessionID = sessionID
         self.gamemode = state.GameState.onevsall
