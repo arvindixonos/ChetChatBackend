@@ -175,7 +175,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             locationdict = {'sid': 0, 'name': 'new'}
             for user in self.connectedusers:
                 if sid != user:
-                    if not self.connectedusers[user]['ingame'] and self.connectedusers[user]['localgamepage']:
+                    if self.useravailabletoplay(user):
                         otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
                         if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[
                             1] != 0.0:
