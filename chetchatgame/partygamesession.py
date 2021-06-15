@@ -34,6 +34,8 @@ class PartyGameSession:
 
     def fillteamlist(self):
         users = self.getsessionusers()
+        self.teamonekeys.clear()
+        self.teamtwokeys.clear()
         for user in users:
             if self.userinfos[user]['team'] == 'teamone':
                 self.teamonekeys.append(user)
@@ -49,8 +51,8 @@ class PartyGameSession:
     def userleft(self, userid):
         print("MAIN MOMO:From: {} player: {} left the game".format(
             self.userinfos[userid]['team'], self.userinfos[userid]['name']))
-        self.sessioncomplete(userid)
         self.setscore(userid, -1)
+        self.sessioncomplete(userid)
         self.resetteamname(userid)
 
     def completedsession(self, key):
@@ -94,6 +96,13 @@ class PartyGameSession:
             ret['teamscore'] = self.teamtwoscore
             ret['opponentscore'] = self.teamonescore
         return ret
+
+    def resetscore(self, team):
+        if team == 'teamone':
+            self.teamonescore = -1
+        else:
+            self.teamtwoscore = -1
+
 
     def resetteamname(self, userid):
         self.userinfos[userid]['team'] = ''

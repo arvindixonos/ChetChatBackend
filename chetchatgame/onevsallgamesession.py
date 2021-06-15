@@ -18,8 +18,8 @@ class OneVsAllGameSession:
                               'score': 0, 'bot': False},
                           3: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False},
-                          4: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False}
+                          # 4: {'claimed': False, 'complete': False, 'started': False,
+                          #     'score': 0, 'bot': False}
                           }
 
         self.sessionComplete = False
@@ -44,6 +44,9 @@ class OneVsAllGameSession:
 
     def getsessionplayercount(self):
         return self.sessionplayercount
+
+    def completedsession(self, key):
+        return self.userinfos[key]['complete']
 
     def userleft(self, userid):
         print("MAIN MOMO:From:Player: {} left the game".format(self.userinfos[userid]['name']))
@@ -82,6 +85,14 @@ class OneVsAllGameSession:
         for user in users:
             if userid != user:
                 ret[user] = self.userinfos[user]['score']
+        return ret
+
+    def getopponentname(self, userid):
+        users = self.getsessionusers()
+        ret = {}
+        for user in users:
+            if userid != user:
+                ret[user] = self.userinfos[user]['name']
         return ret
 
     def sessioncomplete(self, userid):
