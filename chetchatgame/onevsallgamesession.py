@@ -18,8 +18,8 @@ class OneVsAllGameSession:
                               'score': 0, 'bot': False},
                           3: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False},
-                          # 4: {'claimed': False, 'complete': False, 'started': False,
-                          #     'score': 0, 'bot': False}
+                          4: {'claimed': False, 'complete': False, 'started': False,
+                              'score': 0, 'bot': False}
                           }
 
         self.sessionComplete = False

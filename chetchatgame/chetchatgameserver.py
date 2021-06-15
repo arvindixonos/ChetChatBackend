@@ -195,15 +195,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('get_player_list', data=returnusersdict, room=sid)
 
     def useravailabletoplay(self, user):
+        if not self.connectedusers[user]['localgamepage']:
+            return False
         if self.connectedusers[user]['receivedrequest']:
             return False
         if self.connectedusers[user]['ingame']:
-            return False
-        if user in self.searchingusers:
-            return False
-        if user in self.searchingusersfortwovstwo:
-            return False
-        if user in self.searchinguserforonevsall:
             return False
         return True
 
@@ -315,10 +311,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.searchinguserforonevsall[sid] = findinfos
         await self.send_one_vs_all_searching_count()
 
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 3:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 4:
             users = []
             for user in self.searchinguserforonevsall:
-                if len(users) < 4:
+                if len(users) < 5:
                     users.append(user)
 
             for user in users:
