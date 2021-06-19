@@ -177,8 +177,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if sid != user:
                     if self.useravailabletoplay(user):
                         otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
-                        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[
-                            1] != 0.0:
+                        # if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[
+                        #     1] != 0.0:
+                        if self.validdistance(otherlatlon, targetlatlon):
                             locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
                             sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
@@ -200,6 +201,16 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if self.connectedusers[user]['receivedrequest']:
             return False
         if self.connectedusers[user]['ingame']:
+            return False
+        return True
+
+    def validdistance(self,otherlatlon, targetlatlon):
+        distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
+        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0:
+            return False
+        if targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
+            return False
+        if distance>10:
             return False
         return True
 
