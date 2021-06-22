@@ -143,6 +143,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['ingame'] = False
             userdict['localgamepage'] = False
             userdict['otherplayersid'] = ''
+            userdict['maxlocaldistance'] = 1
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -161,6 +162,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             self.connectedusers[sid]['localgamepage'] = localgamepage
 
+    async def on_max_local_distance(self, sid, findinfo):
+        maxlocaldistance = findinfo['maxlocaldistance']
+        if sid in self.connectedusers:
+            self.connectedusers[sid]['maxlocaldistance'] = maxlocaldistance
+
     async def on_update_location(self, sid, findinfos):
         if sid in self.connectedusers:
             self.connectedusers[sid]['lat'] = findinfos['lat']
@@ -170,6 +176,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             #print('Getting Info')
             targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
+            maxlocaldistance = self.connectedusers[sid]['maxlocaldistance']
             sorteddict = {}
             returnusersdict = {}
             locationdict = {'sid': 0, 'name': 'new'}
@@ -179,7 +186,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         otherlatlon = (self.connectedusers[user]['lat'], self.connectedusers[user]['lon'])
                         # if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[
                         #     1] != 0.0:
-                        if self.validdistance(otherlatlon, targetlatlon):
+                        if self.validdistance(otherlatlon, targetlatlon, maxlocaldistance):
                             locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
                             sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
@@ -204,13 +211,13 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return False
         return True
 
-    def validdistance(self,otherlatlon, targetlatlon):
+    def validdistance(self,otherlatlon, targetlatlon, maxdistance):
         distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
-        if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0:
+        if otherlatlon[0] == 0.0 and otherlatlon[1] == 0.0:
             return False
-        if targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
+        if targetlatlon[0] == 0.0 and targetlatlon[1] == 0.0:
             return False
-        if distance>10:
+        if distance > maxdistance:
             return False
         return True
 
@@ -380,18 +387,18 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     def getappropriateuser(self, sid):
         targetuserinfos = self.searchingusers[sid]
-        targetmaxdistance = targetuserinfos['maxdistance']
+        targetmindistance = targetuserinfos['mindistance']
         targetlatlon = (targetuserinfos['lat'], targetuserinfos['lon'])
         for othersid in self.searchingusers:
             if othersid == sid:
                 continue
 
             otherfindinfos = self.searchingusers[othersid]
-            othermaxdistance = otherfindinfos['maxdistance']
+            othermindistance = otherfindinfos['mindistance']
             otherlatlon = (otherfindinfos['lat'], otherfindinfos['lon'])
             if otherlatlon[0] != 0.0 and otherlatlon[1] != 0.0 and targetlatlon[0] != 0.0 and targetlatlon[1] != 0.0:
                 distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
-                if distance < targetmaxdistance and distance < othermaxdistance:
+                if distance > targetmindistance and distance > othermindistance:
                     self.searchingusers.pop(sid)
                     print("Removed User: {} from search queue".format(self.getusername(sid)))
                     self.searchingusers.pop(othersid)
