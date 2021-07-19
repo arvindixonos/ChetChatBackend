@@ -5,6 +5,8 @@ class GameSession:
     userInfos = None
     sessionComplete = False
     gamemode = ''
+    starttime = 0
+    latency = 0
 
     def __init__(self, sessionID, user1sio, user2sio, user1id, user2id, user1name, user2name):
         self.userInfos = {  'user1id': {'claimed': False, 'complete': False, 'started': False, 'score': 0, 'bot': False},
@@ -18,6 +20,20 @@ class GameSession:
         self.userInfos[user2sio]['userid'] = user2id
         self.userInfos[user1sio]['name'] = user1name
         self.userInfos[user2sio]['name'] = user2name
+
+    def getlatency(self):
+        return self.latency
+
+    def setlatency(self, t):
+        if self.latency == 0:
+            self.latency = t
+
+    def getstarttime(self):
+        return self.starttime
+
+    def setstarttime(self, t):
+        if self.starttime == 0:
+            self.starttime = t
 
     def getgamemode(self):
         return self.gamemode

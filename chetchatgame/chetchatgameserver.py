@@ -511,6 +511,15 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 print('Starting session', user)
                 await self.sio.emit('start_session_one_vs_all', room=user)
 
+    async def on_send_session_timer(self, sid, gamesessionid):
+        print("MAIN MOMO: Claiming game session for User: {}".format(self.getusername(sid)))
+        gamesession = self.activegamesessions[gamesessionid]
+        claimresult = gamesession.claimsession(sid)
+        if claimresult is not None:
+            for user in claimresult:
+                print('Starting session', user)
+                await self.sio.emit('start_session_one_vs_all', room=user)
+
     async def on_starting_session(self, sid, sessionid):
         if sessionid in self.activegamesessions:
             print("MAIN MOMO: Starting game session for User: {}".format(self.getusername(sid)))
@@ -579,6 +588,29 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     await self.sio.emit('play_now_clicked', room=user)
         pass
 
+    async def on_game_started_timer(self, sid, info):
+        print('Getting Game Timer')
+        retObj = {"GAME_STARTED_TIME": 0, "MS": 0}
+        sessionid = info["SESSION_ID"]
+        startTime = info["GAME_STARTED_TIME"]
+        latency = info["MS"]
+        if sessionid in self.activegamesessions:
+            gamesession = self.activegamesessions[sessionid]
+            if sid in self.connectedusers:
+                retVal = gamesession.getstarttime()
+                retLatency = gamesession.getlatency()
+                if retVal == 0:
+                    gamesession.setstarttime(startTime)
+                    retVal = startTime
+                if retLatency == 0:
+                    gamesession.setlatency(latency)
+                    retLatency = latency
+                retObj["GAME_STARTED_TIME"] = retVal
+                retObj["MS"] = retLatency
+                print('GameTimer::', retObj["GAME_STARTED_TIME"])
+                await self.sio.emit('get_game_timer', data=retObj, room=sid)
+        pass
+
     async def on_session_complete(self, sid, sessionid):
         print("MAIN MOMO: SESSION COMPLETE User: {} SessionID: {}".format(self.getusername(sid), sessionid))
         if sessionid not in self.activegamesessions:
@@ -613,4 +645,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     opponentname = gamesession.getopponentname(user)
                     await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
                     await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
+        pass
+
+    async def on_post_latency(self, sid, info):
+        latency = info["LATENCY"]
+        print("MAIN MOMO: User: {} Latency{}".format(self.getusername(sid), latency))
         pass
