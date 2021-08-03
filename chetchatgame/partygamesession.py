@@ -9,6 +9,8 @@ class PartyGameSession:
     gamemode = None
     teamonekeys = []
     teamtwokeys = []
+    starttime = 0
+    latency = 0
 
     def __init__(self, sessionID, usersid, userssio, usersname):
         self.userinfos = {0: {'claimed': False, 'complete': False, 'started': False,
@@ -41,6 +43,20 @@ class PartyGameSession:
                 self.teamonekeys.append(user)
             if self.userinfos[user]['team'] == 'teamtwo':
                 self.teamtwokeys.append(user)
+
+    def getlatency(self):
+        return self.latency
+
+    def setlatency(self, t):
+        if self.latency == 0:
+            self.latency = t
+
+    def getstarttime(self):
+        return self.starttime
+
+    def setstarttime(self, t):
+        if self.starttime == 0:
+            self.starttime = t
 
     def setgamemode(self, gamemode):
         self.gamemode = gamemode

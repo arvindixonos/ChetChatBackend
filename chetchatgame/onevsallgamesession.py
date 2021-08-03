@@ -8,6 +8,8 @@ class OneVsAllGameSession:
     sessionComplete = False
     gamemode = None
     sessionplayercount = 0
+    starttime = 0
+    latency = 0
 
     def __init__(self, sessionID, usersid, userssio, usersname):
         self.userinfos = {0: {'claimed': False, 'complete': False, 'started': False,
@@ -32,6 +34,20 @@ class OneVsAllGameSession:
             self.userinfos[userssio[idx]]['userid'] = usersid[idx]
             self.userinfos[userssio[idx]]['name'] = usersname[idx]
             print("Start Claimed: ", self.userinfos[userssio[idx]]['claimed'])
+
+    def getlatency(self):
+        return self.latency
+
+    def setlatency(self, t):
+        if self.latency == 0:
+            self.latency = t
+
+    def getstarttime(self):
+        return self.starttime
+
+    def setstarttime(self, t):
+        if self.starttime == 0:
+            self.starttime = t
 
     def setgamemode(self, gamemode):
         self.gamemode = gamemode

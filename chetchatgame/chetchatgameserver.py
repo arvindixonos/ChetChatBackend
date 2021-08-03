@@ -199,7 +199,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 for k, v in sorteddict.items():
                     returnusersdict[i] = v
                     i = i + 1
-            #print('Return Dict', returnusersdict)
+            print('Return Dict', returnusersdict)
             await self.sio.emit('get_player_list', data=returnusersdict, room=sid)
 
     def useravailabletoplay(self, user):
@@ -649,5 +649,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_post_latency(self, sid, info):
         latency = info["LATENCY"]
-        print("MAIN MOMO: User: {} Latency{}".format(self.getusername(sid), latency))
+        ct = info["CurrentTime"]
+        retVal = info["RetVal"]
+        print("MAIN MOMO: User: {} Start Time{}".format(self.getusername(sid), latency))
+        print("MAIN MOMO: User: {} Current Time{}".format(self.getusername(sid), ct))
+        print("MAIN MOMO: User: {} Start - Current{}".format(self.getusername(sid), retVal))
         pass
