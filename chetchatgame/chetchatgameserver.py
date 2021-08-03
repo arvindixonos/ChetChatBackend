@@ -1,12 +1,13 @@
 import socketio
 import haversine as hs
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 from chetchatgame import gamesession
 from chetchatgame import partygamesession
 from chetchatgame import onevsallgamesession
 import collections
 from chetchatgame import playerstates as state
+from datetime import datetime
 
 
 class ChetChatGameServer(socketio.AsyncNamespace):
@@ -115,6 +116,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_disconnect(self, sid):
         print(f'MAIN MOMO: Client {sid} DISCONNECTED!!!')
+        self.update_loggout_time(sid)
         await self.removealluserdetailsfromMOMO(sid)
 
     async def on_signout(self, sid):
@@ -174,7 +176,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_get_players(self, sid):
         if sid in self.connectedusers:
-            #print('Getting Info')
+            # print('Getting Info')
             targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
             maxlocaldistance = self.connectedusers[sid]['maxlocaldistance']
             sorteddict = {}
@@ -211,7 +213,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return False
         return True
 
-    def validdistance(self,otherlatlon, targetlatlon, maxdistance):
+    def validdistance(self, otherlatlon, targetlatlon, maxdistance):
         distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
         if otherlatlon[0] == 0.0 and otherlatlon[1] == 0.0:
             return False
@@ -655,3 +657,21 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: User: {} Current Time{}".format(self.getusername(sid), ct))
         print("MAIN MOMO: User: {} Start - Current{}".format(self.getusername(sid), retVal))
         pass
+
+    def update_loggout_time(self, sid):
+        print(self.connectedusers[sid]["userid"])
+        db = firestore.client()
+        collection = db.collection('players')
+
+        now = datetime.now()
+
+        # dd/mm/YY H:M:S
+        dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+        str = ""
+
+        for i in dt_string:
+            if i != "/" and i != " " and i != ":":
+                str += i
+
+        res = collection.document(self.connectedusers[sid]["userid"]).update \
+            ({'dateTimeYear': str})
