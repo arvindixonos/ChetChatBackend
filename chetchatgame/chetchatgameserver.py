@@ -658,20 +658,26 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: User: {} Start - Current{}".format(self.getusername(sid), retVal))
         pass
 
+    async def on_debug_function(self, sid, info):
+        retVal = info["Value"]
+        print("MAIN MOMO: User: DEBUG TEXT".format(self.getusername(sid), retVal))
+        pass
+
     def update_loggout_time(self, sid):
-        print(self.connectedusers[sid]["userid"])
-        db = firestore.client()
-        collection = db.collection('players')
+        if sid in self.connectedusers:
+            print(self.connectedusers[sid]["userid"])
+            db = firestore.client()
+            collection = db.collection('players')
 
-        now = datetime.now()
+            now = datetime.now()
 
-        # dd/mm/YY H:M:S
-        dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-        str = ""
+            # mm/dd/YY H:M:S
+            dt_string = now.strftime("%m/%d/%Y %H:%M:%S")
+            str = ""
 
-        for i in dt_string:
-            if i != "/" and i != " " and i != ":":
-                str += i
+            for i in dt_string:
+                if i != "/" and i != " " and i != ":":
+                    str += i
 
-        res = collection.document(self.connectedusers[sid]["userid"]).update \
-            ({'dateTimeYear': str})
+            res = collection.document(self.connectedusers[sid]["userid"]).update \
+                ({'dateTimeYear': str})
