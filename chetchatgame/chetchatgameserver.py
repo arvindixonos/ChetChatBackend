@@ -8,7 +8,7 @@ from chetchatgame import onevsallgamesession
 import collections
 from chetchatgame import playerstates as state
 from datetime import datetime
-
+import calendar
 
 class ChetChatGameServer(socketio.AsyncNamespace):
     sio = None
@@ -25,6 +25,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         socketio.AsyncNamespace.__init__(self, namespace=namespace)
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
+        #self.check()
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -258,6 +259,13 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     async def on_start_game(self, sid, otherplayer):
         print('start Clicked')
         otherplayersid = otherplayer['sid']
+        samesession = otherplayer['samesession']
+
+        if samesession == 'TRUE':
+            currentsession = self.connectedusers[sid]['assignedsessionid']
+            if self.activegamesessions[currentsession]:
+                self.activegamesessions.pop(currentsession)
+
         if sid in self.connectedusers and otherplayersid in self.connectedusers:
             user1 = sid
             user2 = otherplayersid
@@ -613,6 +621,20 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 await self.sio.emit('get_game_timer', data=retObj, room=sid)
         pass
 
+    async def on_play_again(self, sid):
+        print("MAIN MOMO: Sent Game Request")
+        if sid in self.connectedusers:
+            sessionid = self.connectedusers[sid]['assignedsessionid']
+            if sessionid in self.activegamesessions:
+                gamesession = self.activegamesessions[sessionid]
+                otherplayersid = gamesession.getopponentsid(sid)
+                print("MAIN MOMO: Sent Game Request To User: {}".format(self.getusername(otherplayersid)))
+                if otherplayersid in self.connectedusers:
+                    returnusersdict = {}
+                    returnusersdict['sid'] = sid
+                    returnusersdict['name'] = self.connectedusers[sid]['name']
+                    await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
+
     async def on_session_complete(self, sid, sessionid):
         print("MAIN MOMO: SESSION COMPLETE User: {} SessionID: {}".format(self.getusername(sid), sessionid))
         if sessionid not in self.activegamesessions:
@@ -622,29 +644,34 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         sessioncompleteresult = gamesession.sessioncomplete(sid)
         if sessioncompleteresult is not None:
             print("MAIN MOMO: Removing active User: {} SessionID: {}".format(self.getusername(sid), sessionid))
-            self.activegamesessions.pop(sessionid)
+            #self.activegamesessions.pop(sessionid)
 
             for user in sessioncompleteresult:
                 if user in self.connectedusers:
-                    self.connectedusers[user]['assignedsessionid'] = ''
                     self.connectedusers[user]['ingame'] = False
                     self.connectedusers[user]['receivedrequest'] = False
 
             sessionresult = gamesession.getsessionresult()
+
             if gamesession.getgamemode() == state.GameState.local:
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
+                    # self.connectedusers[user]['assignedsessionid'] = ''
                     await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
+                self.activegamesessions.pop(sessionid)
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
+                    self.connectedusers[user]['assignedsessionid'] = ''
                     await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.onevsall:
+                self.activegamesessions.pop(sessionid)
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
                     opponentname = gamesession.getopponentname(user)
+                    self.connectedusers[user]['assignedsessionid'] = ''
                     await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
                     await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
         pass
@@ -653,9 +680,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         latency = info["LATENCY"]
         ct = info["CurrentTime"]
         retVal = info["RetVal"]
-        print("MAIN MOMO: User: {} Start Time{}".format(self.getusername(sid), latency))
-        print("MAIN MOMO: User: {} Current Time{}".format(self.getusername(sid), ct))
-        print("MAIN MOMO: User: {} Start - Current{}".format(self.getusername(sid), retVal))
+        # print("MAIN MOMO: User: {} Start Time{}".format(self.getusername(sid), latency))
+        # print("MAIN MOMO: User: {} Current Time{}".format(self.getusername(sid), ct))
+        # print("MAIN MOMO: User: {} Start - Current{}".format(self.getusername(sid), retVal))
         pass
 
     async def on_debug_function(self, sid, info):
@@ -666,8 +693,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     def update_loggout_time(self, sid):
         if sid in self.connectedusers:
             print(self.connectedusers[sid]["userid"])
-            db = firestore.client()
-            collection = db.collection('players')
+            database = firestore.client()
+            collection = database.collection('players')
 
             now = datetime.now()
 
@@ -681,3 +708,24 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             res = collection.document(self.connectedusers[sid]["userid"]).update \
                 ({'dateTimeYear': str})
+
+    def check(self):
+
+        db = firestore.client()
+        doc_ref = db.collection('players').document('fuuY8wZyDQPSrbLVG5GxqDQm6an1')
+        doc = doc_ref.get()
+
+        if doc.exists:
+            print(f'Document data: {doc.to_dict()}')
+            ref = doc.to_dict()
+            for d in ref:
+                if(d == 'name'):
+                    print(ref[d])
+        else:
+            print(u'No such document!')
+
+    # async def on_what_day(self, sid, info):
+    #     if sid in self.connectedusers:
+    #         print(self.connectedusers[sid]["userid"])
+    #         my_date = date.today()
+    #         calendar.day_name[my_date.weekday()]
