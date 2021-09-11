@@ -10,6 +10,7 @@ from chetchatgame import playerstates as state
 from datetime import datetime
 import calendar
 
+
 class ChetChatGameServer(socketio.AsyncNamespace):
     sio = None
     connectedusers = {}
@@ -25,7 +26,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         socketio.AsyncNamespace.__init__(self, namespace=namespace)
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
-        #self.check()
+        # self.check()
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -87,7 +88,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         if user != sid and user in self.connectedusers:
                             print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
                                   .format(self.getusername(user), self.getusername(sid)))
+                            await self.request_rejected_in_current_session(user)
                             await self.on_session_complete(user, sessionid)
+                            await self.opponent_disconnect_from_current_session(user)
 
                 if gamesession.getgamemode() == state.GameState.twovstwo:
                     for user in users:
@@ -147,6 +150,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['localgamepage'] = False
             userdict['otherplayersid'] = ''
             userdict['maxlocaldistance'] = 1
+            userdict['profileid'] = 0
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -158,22 +162,37 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return self.connectedusers[sid]['name']
         return ""
 
+    def getprofileid(self, sid):
+        if sid in self.connectedusers:
+            return self.connectedusers[sid]['profileid']
+        return 0
+
     # GAME SERVER
+    async def on_set_profile_id(self, sid, data):
+        profileid = data['profileid']
+        print('Other player pro id')
+        if sid in self.connectedusers:
+            self.connectedusers[sid]['profileid'] = profileid
+            print('Other player pro id', self.connectedusers[sid]['profileid'])
+        pass
 
     async def on_local_game_page_selected(self, sid, pagevalue):
         localgamepage = pagevalue['localgamepage']
         if sid in self.connectedusers:
             self.connectedusers[sid]['localgamepage'] = localgamepage
+        pass
 
     async def on_max_local_distance(self, sid, findinfo):
         maxlocaldistance = findinfo['maxlocaldistance']
         if sid in self.connectedusers:
             self.connectedusers[sid]['maxlocaldistance'] = maxlocaldistance
+        pass
 
     async def on_update_location(self, sid, findinfos):
         if sid in self.connectedusers:
             self.connectedusers[sid]['lat'] = findinfos['lat']
             self.connectedusers[sid]['lon'] = findinfos['lon']
+        pass
 
     async def on_get_players(self, sid):
         if sid in self.connectedusers:
@@ -204,6 +223,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     i = i + 1
             print('Return Dict', returnusersdict)
             await self.sio.emit('get_player_list', data=returnusersdict, room=sid)
+        pass
 
     def useravailabletoplay(self, user):
         if not self.connectedusers[user]['localgamepage']:
@@ -226,20 +246,37 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_send_game_request(self, sid, otherplayerdict):
         if sid in self.connectedusers:
+
             otherplayersid = otherplayerdict['sid']
+
             self.connectedusers[sid]['receivedrequest'] = True
             self.connectedusers[sid]['otherplayersid'] = otherplayersid
+
             print("MAIN MOMO: Sent Game Request To User: {}".format(self.getusername(otherplayersid)))
+
             if otherplayersid in self.connectedusers:
                 if not self.connectedusers[otherplayersid]['receivedrequest']:
                     print("MAIN MOMO: Recived Game Request From User: {}".format(self.getusername(sid)))
                     self.connectedusers[otherplayersid]['receivedrequest'] = True
                     self.connectedusers[otherplayersid]['otherplayersid'] = sid
+
                     print('Self Player: ', self.connectedusers[otherplayersid]['otherplayersid'])
+
                     returnusersdict = {}
                     returnusersdict['sid'] = sid
                     returnusersdict['name'] = self.connectedusers[sid]['name']
                     await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
+
+                    selfplayerdict = {}
+                    otherplayerdict = {}
+                    selfplayerdict['enemyprofileid'] = self.connectedusers[otherplayersid]['profileid']
+                    print('Other player pro id', self.connectedusers[otherplayersid]['profileid'])
+                    otherplayerdict['enemyprofileid'] = self.connectedusers[sid]['profileid']
+                    print('Self player pro id', self.connectedusers[sid]['profileid'])
+
+                    await self.sio.emit('other_player_profile_id', data=otherplayerdict, room=otherplayersid)
+                    await self.sio.emit('other_player_profile_id', data=selfplayerdict, room=sid)
+        pass
 
     async def on_request_rejected(self, sid, otherplayerdict):
         if sid in self.connectedusers:
@@ -255,18 +292,27 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 returnusersdict['sid'] = sid
                 returnusersdict['name'] = self.connectedusers[sid]['name']
                 await self.sio.emit('game_request_rejected', room=otherplayersid)
+        pass
+
+    async def request_rejected_in_current_session(self, otherplayersid):
+        if otherplayersid in self.connectedusers:
+            print("adasdasddsdasdasdasa asdasdsadasdasdasd : ", self.connectedusers[otherplayersid]["name"])
+            self.connectedusers[otherplayersid]['receivedrequest'] = False
+            self.connectedusers[otherplayersid]['otherplayersid'] = ''
+            await self.sio.emit('game_request_rejected', room=otherplayersid)
+        pass
 
     async def on_start_game(self, sid, otherplayer):
+
         print('start Clicked')
         otherplayersid = otherplayer['sid']
         samesession = otherplayer['samesession']
 
-        if samesession == 'TRUE':
-            currentsession = self.connectedusers[sid]['assignedsessionid']
-            if self.activegamesessions[currentsession]:
-                self.activegamesessions.pop(currentsession)
-
         if sid in self.connectedusers and otherplayersid in self.connectedusers:
+            if samesession == 'TRUE':
+                currentsession = self.connectedusers[sid]['assignedsessionid']
+                if self.activegamesessions[currentsession]:
+                    self.activegamesessions.pop(currentsession)
             user1 = sid
             user2 = otherplayersid
             print('user1 ', user1)
@@ -564,7 +610,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         pass
 
     async def on_send_message(self, sid, sessionmessagedict):
-        sessionid = sessionmessagedict['SESSION_ID']
+        # sessionid = sessionmessagedict['SESSION_ID']
+        sessionid = self.connectedusers[sid]['assignedsessionid']
         message = sessionmessagedict['MESSAGE']
         if sessionid in self.activegamesessions:
             gamesession = self.activegamesessions[sessionid]
@@ -635,6 +682,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     returnusersdict['name'] = self.connectedusers[sid]['name']
                     await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
 
+    async def turn_off_play_again(self, sid):
+        if sid in self.connectedusers:
+            print("MAIN MOMO: Turning Off Play Again For Active User: {}".format(self.getusername(sid)))
+            await self.sio.emit('turn_off_play_again', room=sid)
+        pass
+
     async def on_session_complete(self, sid, sessionid):
         print("MAIN MOMO: SESSION COMPLETE User: {} SessionID: {}".format(self.getusername(sid), sessionid))
         if sessionid not in self.activegamesessions:
@@ -642,9 +695,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return
         gamesession = self.activegamesessions[sessionid]
         sessioncompleteresult = gamesession.sessioncomplete(sid)
+
         if sessioncompleteresult is not None:
             print("MAIN MOMO: Removing active User: {} SessionID: {}".format(self.getusername(sid), sessionid))
-            #self.activegamesessions.pop(sessionid)
 
             for user in sessioncompleteresult:
                 if user in self.connectedusers:
@@ -656,18 +709,17 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             if gamesession.getgamemode() == state.GameState.local:
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
-                    # self.connectedusers[user]['assignedsessionid'] = ''
                     await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
-                self.activegamesessions.pop(sessionid)
+                self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
                     self.connectedusers[user]['assignedsessionid'] = ''
                     await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.onevsall:
-                self.activegamesessions.pop(sessionid)
+                self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
                     opponentname = gamesession.getopponentname(user)
@@ -709,6 +761,32 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             res = collection.document(self.connectedusers[sid]["userid"]).update \
                 ({'dateTimeYear': str})
 
+    async def opponent_disconnect_from_current_session(self, sid):
+        if sid in self.connectedusers:
+            if self.connectedusers[sid]['assignedsessionid']:
+                self.remove_active_game_session(self.connectedusers[sid]['assignedsessionid'])
+                await self.turn_off_play_again(sid)
+                self.connectedusers[sid]['assignedsessionid'] = ''
+                print('USER DISCONNECTED FROM CURRENT SESSION', self.getusername(sid))
+        pass
+
+    async def on_disconnected_from_current_session(self, sid):
+        if sid in self.connectedusers:
+            if self.connectedusers[sid]['assignedsessionid']:
+                gamesession = self.remove_active_game_session(self.connectedusers[sid]['assignedsessionid'])
+                print(gamesession)
+                if gamesession:
+                    await self.turn_off_play_again(gamesession.getopponentsid(sid))
+                self.connectedusers[sid]['assignedsessionid'] = ''
+                print('USER DISCONNECTED FROM CURRENT SESSION', self.getusername(sid))
+        pass
+
+    def remove_active_game_session(self, sessionid):
+        if sessionid in self.activegamesessions:
+            print('MOMO: REMOVING ACTIVE GAME SESSION {}'.format(sessionid))
+            return self.activegamesessions.pop(sessionid)
+        return None
+
     def check(self):
 
         db = firestore.client()
@@ -719,7 +797,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             print(f'Document data: {doc.to_dict()}')
             ref = doc.to_dict()
             for d in ref:
-                if(d == 'name'):
+                if (d == 'name'):
                     print(ref[d])
         else:
             print(u'No such document!')

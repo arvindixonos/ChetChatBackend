@@ -83,9 +83,6 @@ class GameSession:
 
     def getopponentsid(self, sid):
         users = self.getsessionusers()
-        print("user Check", sid)
-        print("user 1", users[0])
-        print("user 2", users[1])
         if users[0] == sid:
             return users[1]
         else:
