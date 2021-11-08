@@ -26,7 +26,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         socketio.AsyncNamespace.__init__(self, namespace=namespace)
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
-        # self.check()
+        # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -170,10 +170,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     # GAME SERVER
     async def on_set_profile_id(self, sid, data):
         profileid = data['profileid']
-        print('Other player pro id')
         if sid in self.connectedusers:
             self.connectedusers[sid]['profileid'] = profileid
-            print('Other player pro id', self.connectedusers[sid]['profileid'])
+            print('player pro id', self.connectedusers[sid]['profileid'])
         pass
 
     async def on_local_game_page_selected(self, sid, pagevalue):
@@ -211,6 +210,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         if self.validdistance(otherlatlon, targetlatlon, maxlocaldistance):
                             locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
+                            locationdict['profilepic'] = self.connectedusers[user]['profileid']
+                            locationdict['gender'] = self.get_value_from_db(sid, 'gender')
+                            locationdict['membership'] = self.get_value_from_db(sid, 'membership')
                             sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
                                 locationdict)
                             print("Added")
@@ -787,20 +789,34 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             return self.activegamesessions.pop(sessionid)
         return None
 
-    def check(self):
-
+    def get_value_from_db(self, sid, param):
         db = firestore.client()
-        doc_ref = db.collection('players').document('fuuY8wZyDQPSrbLVG5GxqDQm6an1')
+        doc_ref = db.collection('players').document(sid)
         doc = doc_ref.get()
 
         if doc.exists:
-            print(f'Document data: {doc.to_dict()}')
+            #print(f'Document data: {doc.to_dict()}')
             ref = doc.to_dict()
             for d in ref:
-                if (d == 'name'):
-                    print(ref[d])
+                if (d == param):
+                    return ref[d]
+
+    async def on_get_membership(self, sid, info):
+        opponentsid = info['opponentsid']
+        db = firestore.client()
+        doc_ref = db.collection('players').document(opponentsid)
+        doc = doc_ref.get()
+        retVal=0
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if (d == 'membership'):
+                    retVal = ref[d]
+                    await self.sio.emit('set_opponent_membership', data=retVal, room=sid)
+                    return
         else:
-            print(u'No such document!')
+            retVal = 3
+            await self.sio.emit('set_opponent_membership', data=retVal, room=sid)
 
     # async def on_what_day(self, sid, info):
     #     if sid in self.connectedusers:
