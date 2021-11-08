@@ -151,6 +151,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['otherplayersid'] = ''
             userdict['maxlocaldistance'] = 1
             userdict['profileid'] = 0
+            #userdict['membership'] = 3
+            userdict['gender'] = 0
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -168,6 +170,18 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         return 0
 
     # GAME SERVER
+    async def on_update_membership(self, sid, info):
+        value = info['membership']
+        if sid in self.connectedusers:
+            self.connectedusers[sid]['membership'] = value
+        pass
+
+    async def on_update_gender(self, sid, info):
+        value = info['gender']
+        if sid in self.connectedusers:
+            self.connectedusers[sid]['gender'] = value
+        pass
+
     async def on_set_profile_id(self, sid, data):
         profileid = data['profileid']
         if sid in self.connectedusers:
@@ -211,8 +225,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                             locationdict['sid'] = user
                             locationdict['name'] = self.connectedusers[user]['name']
                             locationdict['profilepic'] = self.connectedusers[user]['profileid']
-                            locationdict['gender'] = self.get_value_from_db(sid, 'gender')
-                            locationdict['membership'] = self.get_value_from_db(sid, 'membership')
+                            locationdict['gender'] = self.connectedusers[user]['gender']
+                            locationdict['membership'] = self.connectedusers[user]['membership']
                             sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
                                 locationdict)
                             print("Added")
@@ -237,11 +251,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         return True
 
     def validdistance(self, otherlatlon, targetlatlon, maxdistance):
-        distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
         if otherlatlon[0] == 0.0 and otherlatlon[1] == 0.0:
             return False
         if targetlatlon[0] == 0.0 and targetlatlon[1] == 0.0:
             return False
+        distance = self.calculatedistancebetweenlocations(otherlatlon, targetlatlon)
         if distance > maxdistance:
             return False
         return True
@@ -801,22 +815,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if (d == param):
                     return ref[d]
 
-    async def on_get_membership(self, sid, info):
-        opponentsid = info['opponentsid']
-        db = firestore.client()
-        doc_ref = db.collection('players').document(opponentsid)
-        doc = doc_ref.get()
-        retVal=0
-        if doc.exists:
-            ref = doc.to_dict()
-            for d in ref:
-                if (d == 'membership'):
-                    retVal = ref[d]
-                    await self.sio.emit('set_opponent_membership', data=retVal, room=sid)
-                    return
-        else:
-            retVal = 3
-            await self.sio.emit('set_opponent_membership', data=retVal, room=sid)
 
     # async def on_what_day(self, sid, info):
     #     if sid in self.connectedusers:
