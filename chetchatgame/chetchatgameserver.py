@@ -281,6 +281,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     returnusersdict = {}
                     returnusersdict['sid'] = sid
                     returnusersdict['name'] = self.connectedusers[sid]['name']
+                    returnusersdict['gender'] = self.connectedusers[sid]['gender']
+                    returnusersdict['membership'] = self.connectedusers[sid]['membership']
+                    returnusersdict['profileid'] = self.connectedusers[sid]['profileid']
                     await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
 
                     selfplayerdict = {}
@@ -694,8 +697,14 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 print("MAIN MOMO: Sent Game Request To User: {}".format(self.getusername(otherplayersid)))
                 if otherplayersid in self.connectedusers:
                     returnusersdict = {}
+                    # returnusersdict['sid'] = sid
+                    # returnusersdict['name'] = self.connectedusers[sid]['name']
                     returnusersdict['sid'] = sid
                     returnusersdict['name'] = self.connectedusers[sid]['name']
+                    returnusersdict['gender'] = self.connectedusers[sid]['gender']
+                    returnusersdict['membership'] = self.connectedusers[sid]['membership']
+                    returnusersdict['profileid'] = self.connectedusers[sid]['profileid']
+                    # await self.sio.emit('game_request_received_play_again', room=otherplayersid)
                     await self.sio.emit('game_request_received', data=returnusersdict, room=otherplayersid)
 
     async def turn_off_play_again(self, sid):
