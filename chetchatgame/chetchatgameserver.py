@@ -904,7 +904,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         minutes = (seconds % 3600) // 60
                         print(minutes)
                     else:
-                        minutes = (hours * 60)
+                        minutes = (hours * 60) + (seconds % 3600) // 60
                         print(minutes)
                     seconds = seconds % 60
                     ret['DAYS'] = days
@@ -935,7 +935,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                     days, seconds = dt_string.days, dt_string.seconds
                     hours = days * 24 + seconds // 3600
-                    minutes = (seconds % 3600) // 60
+                    if hours == 0:
+                        minutes = (seconds % 3600) // 60
+                        print(minutes)
+                    else:
+                        minutes = (hours * 60) + (seconds % 3600) // 60
+                        print(minutes)
                     seconds = seconds % 60
                     ret['DAYS'] = days
                     ret['HOURS'] = hours
