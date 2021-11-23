@@ -29,7 +29,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
         # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
-        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1','logged_out_time'))
+        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1','last_refill_time'))
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -842,8 +842,16 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         timedetails = {}
         if sid in self.connectedusers:
             timedetails = self.get_difference_between_loggout_time(self.connectedusers[sid]['userid'], loggedoutparms)
-            print(timedetails)
             await self.sio.emit('check_for_daily_rewards', data=timedetails, room=sid)
+        pass
+
+    async def on_update_heart_time(self, sid, info):
+        lastrefillparams = info['lastrefill']
+        timedetails = {}
+        if sid in self.connectedusers:
+            timedetails = self.get_difference_between_last_heart_claimed_time(self.connectedusers[sid]['userid'], 'last_refill_time')
+            print(timedetails)
+            await self.sio.emit('update_heart_count', data=timedetails, room=sid)
         pass
 
     def remove_active_game_session(self, sessionid):
@@ -856,7 +864,26 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         db = firestore.client()
         doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
-        retval = ''
+        ret = {'DAYS': 0}
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if (d == param):
+                    userloggedouttime = ref[d]
+                    currentutctime = datetime.utcnow()
+                    parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y")
+                    parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y")
+                    finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y")
+                    finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y")
+                    dt_string = finalutcnowtime - finaluserloggedouttime
+                    days, seconds = dt_string.days, dt_string.seconds
+                    ret['DAYS'] = days
+        return ret
+
+    def get_difference_between_last_heart_claimed_time(self, userid, param):
+        db = firestore.client()
+        doc_ref = db.collection('players').document(userid)
+        doc = doc_ref.get()
         ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
         if doc.exists:
             ref = doc.to_dict()
@@ -864,26 +891,27 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if (d == param):
                     userloggedouttime = ref[d]
                     currentutctime = datetime.utcnow()
-
-                    parseduserloggouttime =userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
+                    parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
                     parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y %H:%M:%S")
-
+                    print('last Refill Time: ', parseduserloggouttime)
                     finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y %H:%M:%S")
                     finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y %H:%M:%S")
-                    dt_string = finalutcnowtime-finaluserloggedouttime
-
+                    dt_string = finalutcnowtime - finaluserloggedouttime
                     days, seconds = dt_string.days, dt_string.seconds
                     hours = days * 24 + seconds // 3600
-                    minutes = (seconds % 3600) // 60
+                    # minutes = (seconds % 3600) // 60
+                    if hours == 0:
+                        minutes = (seconds % 3600) // 60
+                        print(minutes)
+                    else:
+                        minutes = (hours * 60)
+                        print(minutes)
                     seconds = seconds % 60
                     ret['DAYS'] = days
                     ret['HOURS'] = hours
                     ret['MINUTES'] = minutes
                     ret['SECONDS'] = seconds
-                    retval = ref[d].strftime("%d/%m/%Y %H:%M:%S")
         return ret
-
-
 
     def get_value_from_db(self, userid, param):
         db = firestore.client()
@@ -913,7 +941,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     ret['HOURS'] = hours
                     ret['MINUTES'] = minutes
                     ret['SECONDS'] = seconds
-                    retval = ref[d].strftime("%d/%m/%Y %H:%M:%S")
         return ret
 
 # async def on_what_day(self, sid, info):
