@@ -1,3 +1,5 @@
+import asyncio
+
 import socketio
 import haversine as hs
 import firebase_admin
@@ -7,7 +9,7 @@ from chetchatgame import partygamesession
 from chetchatgame import onevsallgamesession
 import collections
 from chetchatgame import playerstates as state
-from datetime import datetime
+from datetime import datetime, timezone
 import calendar
 
 
@@ -27,6 +29,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
         # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
+        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1','logged_out_time'))
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -125,6 +128,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_signout(self, sid):
         print(f'MAIN MOMO: Client {sid} SIGNED OUT! BYE!')
+        self.update_loggout_time(sid)
         await self.removealluserdetailsfromMOMO(sid)
 
     async def on_message(self, sid, message):
@@ -151,7 +155,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['otherplayersid'] = ''
             userdict['maxlocaldistance'] = 1
             userdict['profileid'] = 0
-            #userdict['membership'] = 3
+            userdict['membership'] = 3
             userdict['gender'] = 0
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
@@ -404,10 +408,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.searchinguserforonevsall[sid] = findinfos
         await self.send_one_vs_all_searching_count()
 
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 4:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 1:
             users = []
             for user in self.searchinguserforonevsall:
-                if len(users) < 5:
+                if len(users) < 2:
                     users.append(user)
 
             for user in users:
@@ -421,7 +425,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 self.connectedusers[user]['ingame'] = True
 
             for user in users:
-                await self.sio.emit('one_vs_all_game_found', data=sessioninfo, room=user)
+                retsessioninfo = dict(sessioninfo)
+                if user in retsessioninfo:
+                    retsessioninfo.pop(user)
+                await self.sio.emit('one_vs_all_game_found', data=retsessioninfo, room=user)
         pass
 
     async def send_two_vs_two_searching_count(self):
@@ -451,8 +458,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         elif sid in self.searchinguserforonevsall:
             print("MAIN MOMO: Cancelled Find Game for User: {}".format(self.getusername(sid)))
             self.searchinguserforonevsall.pop(sid)
-            await  self.send_one_vs_all_searching_count()
             await self.sio.emit('find_game_cancelled', room=sid)
+            await self.send_one_vs_all_searching_count()
         else:
             print("MAIN MOMO: Not searching game for User: {}".format(self.getusername(sid)))
 
@@ -534,12 +541,25 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         sessionid = users[0] + users[1]
         userid = []
         username = []
+
+        tempval = {'userid': '', 'username': '', 'gender': 0, 'membership': 3, 'profileid': 0}
+        retval={}
+
         print('MAIN MOMO: Creating game session for Users:')
         for user in users:
             print('MAIN MOMO:User: {}'.format(self.getusername(user)))
             print('user sid: ', user)
             print('user id: ', self.connectedusers[user]['userid'])
             print('user name: ', self.connectedusers[user]['name'])
+
+            tempval['userid'] = self.connectedusers[user]['userid']
+            tempval['username'] = self.connectedusers[user]['name']
+            tempval['gender'] = self.connectedusers[user]['gender']
+            tempval['membership'] = self.connectedusers[user]['membership']
+            tempval['profileid'] = self.connectedusers[user]['profileid']
+
+            retval[user] = dict(tempval)
+
             userid.append(self.connectedusers[user]['userid'])
             username.append(self.connectedusers[user]['name'])
 
@@ -549,10 +569,15 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
         self.activegamesessions[sessionid] = gamesessioninstance
 
-        retval = {}
-        for user in range(len(users)):
-            retval[user] = {'userid': userid[user]}
-            retval[user] = {'username': username[user]}
+        # for user in range(len(users)):
+            # retval[user] = {'userid': userid[user]}
+            # retval[user] = {'username': username[user]}
+            # retval[user]['gender'] = self.connectedusers[user]['gender']
+            # retval[user]['membership'] = self.connectedusers[user]['membership']
+            # retval[user]['profileid'] = self.connectedusers[user]['profileid']
+
+        # retval['sessionid'] = sessionid
+        # return retval
 
         retval['sessionid'] = sessionid
         return retval
@@ -734,23 +759,26 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             if gamesession.getgamemode() == state.GameState.local:
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
-                    await self.sio.emit('game_over', data=sessionresult, room=user)
+                    if user in self.connectedusers:
+                        await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
                 self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
-                    self.connectedusers[user]['assignedsessionid'] = ''
-                    await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
+                    if user in self.connectedusers:
+                        self.connectedusers[user]['assignedsessionid'] = ''
+                        await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.onevsall:
                 self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
-                    opponentname = gamesession.getopponentname(user)
-                    self.connectedusers[user]['assignedsessionid'] = ''
-                    await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
-                    await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
+                    if user in self.connectedusers:
+                        # opponentname = gamesession.getopponentname(user)
+                        self.connectedusers[user]['assignedsessionid'] = ''
+                        # await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
+                        await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
         pass
 
     async def on_post_latency(self, sid, info):
@@ -773,7 +801,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             database = firestore.client()
             collection = database.collection('players')
 
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
 
             # mm/dd/YY H:M:S
             dt_string = now.strftime("%m/%d/%Y %H:%M:%S")
@@ -784,7 +812,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     str += i
 
             res = collection.document(self.connectedusers[sid]["userid"]).update \
-                ({'dateTimeYear': str})
+                ({'logged_out_time': now})
+
+            # res = collection.document(self.connectedusers[sid]["userid"]).update \
+            #     ({'dateTimeYear': str})
 
     async def opponent_disconnect_from_current_session(self, sid):
         if sid in self.connectedusers:
@@ -806,26 +837,86 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 print('USER DISCONNECTED FROM CURRENT SESSION', self.getusername(sid))
         pass
 
+    async def on_get_last_logged_out_time(self, sid, info):
+        loggedoutparms = info['lastloggedouttime']
+        timedetails = {}
+        if sid in self.connectedusers:
+            timedetails = self.get_difference_between_loggout_time(self.connectedusers[sid]['userid'], loggedoutparms)
+            print(timedetails)
+            await self.sio.emit('check_for_daily_rewards', data=timedetails, room=sid)
+        pass
+
     def remove_active_game_session(self, sessionid):
         if sessionid in self.activegamesessions:
             print('MOMO: REMOVING ACTIVE GAME SESSION {}'.format(sessionid))
             return self.activegamesessions.pop(sessionid)
         return None
 
-    def get_value_from_db(self, sid, param):
+    def get_difference_between_loggout_time(self, userid, param):
         db = firestore.client()
-        doc_ref = db.collection('players').document(sid)
+        doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
-
+        retval = ''
+        ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
         if doc.exists:
-            #print(f'Document data: {doc.to_dict()}')
             ref = doc.to_dict()
             for d in ref:
                 if (d == param):
-                    return ref[d]
+                    userloggedouttime = ref[d]
+                    currentutctime = datetime.utcnow()
+
+                    parseduserloggouttime =userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
+                    parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y %H:%M:%S")
+
+                    finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y %H:%M:%S")
+                    finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y %H:%M:%S")
+                    dt_string = finalutcnowtime-finaluserloggedouttime
+
+                    days, seconds = dt_string.days, dt_string.seconds
+                    hours = days * 24 + seconds // 3600
+                    minutes = (seconds % 3600) // 60
+                    seconds = seconds % 60
+                    ret['DAYS'] = days
+                    ret['HOURS'] = hours
+                    ret['MINUTES'] = minutes
+                    ret['SECONDS'] = seconds
+                    retval = ref[d].strftime("%d/%m/%Y %H:%M:%S")
+        return ret
 
 
-    # async def on_what_day(self, sid, info):
+
+    def get_value_from_db(self, userid, param):
+        db = firestore.client()
+        doc_ref = db.collection('players').document(userid)
+        doc = doc_ref.get()
+        retval = ''
+        ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if (d == param):
+                    userloggedouttime = ref[d]
+                    currentutctime = datetime.utcnow()
+
+                    parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
+                    parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y %H:%M:%S")
+
+                    finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y %H:%M:%S")
+                    finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y %H:%M:%S")
+                    dt_string = finalutcnowtime - finaluserloggedouttime
+
+                    days, seconds = dt_string.days, dt_string.seconds
+                    hours = days * 24 + seconds // 3600
+                    minutes = (seconds % 3600) // 60
+                    seconds = seconds % 60
+                    ret['DAYS'] = days
+                    ret['HOURS'] = hours
+                    ret['MINUTES'] = minutes
+                    ret['SECONDS'] = seconds
+                    retval = ref[d].strftime("%d/%m/%Y %H:%M:%S")
+        return ret
+
+# async def on_what_day(self, sid, info):
     #     if sid in self.connectedusers:
     #         print(self.connectedusers[sid]["userid"])
     #         my_date = date.today()
