@@ -9,7 +9,8 @@ from chetchatgame import partygamesession
 from chetchatgame import onevsallgamesession
 import collections
 from chetchatgame import playerstates as state
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from google.cloud.firestore_v1.transforms import DELETE_FIELD
 import calendar
 
 
@@ -87,6 +88,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 users = gamesession.getsessionusers()
 
                 if gamesession.getgamemode() == state.GameState.local:
+                    if gamesession.didallcompletesession() is False:
+                        self.update_heart_on_disconnect(userinfo['userid'])
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
@@ -96,6 +99,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                             await self.opponent_disconnect_from_current_session(user)
 
                 if gamesession.getgamemode() == state.GameState.twovstwo:
+                    if gamesession.didallcompletesession() is False:
+                        self.update_heart_on_disconnect(userinfo['userid'])
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             if gamesession.completedsession(user):
@@ -112,6 +117,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                                 await self.on_session_complete(user, sessionid)
 
                 if gamesession.getgamemode() == state.GameState.onevsall:
+                    if gamesession.didallcompletesession() is False:
+                        self.update_heart_on_disconnect(userinfo['userid'])
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             if gamesession.completedsession(user):
@@ -174,6 +181,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         return 0
 
     # GAME SERVER
+    def update_heart_on_disconnect(self, userid):
+        val = 1
+        self.set_value_in_db(userid, 'heart', val)
+
+
     async def on_update_membership(self, sid, info):
         value = info['membership']
         if sid in self.connectedusers:
@@ -884,7 +896,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         db = firestore.client()
         doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
-        ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
+        ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0,'MEMBERSHIP':0}
         if doc.exists:
             ref = doc.to_dict()
             for d in ref:
@@ -911,42 +923,93 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     ret['HOURS'] = hours
                     ret['MINUTES'] = minutes
                     ret['SECONDS'] = seconds
+                if d == 'membership':
+                    ret['MEMBERSHIP'] = ref[d]
         return ret
+
+    def set_value_in_db(self, userid, param, value):
+        db = firestore.client()
+        doc_ref = db.collection('players').document(userid)
+        doc = doc_ref.get()
+        count = 0
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if d == param:
+                    count = ref[d]
+            if count > 0:
+                count = count-value
+                if count == 9:
+                    doc_ref.update({
+                        param: count,
+                        'last_refill_time': datetime.utcnow(),
+                        })
+                else:
+                    doc_ref.update({
+                        param: count,
+                    })
 
     def get_value_from_db(self, userid, param):
         db = firestore.client()
         doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
+        print(doc_ref)
         retval = ''
-        ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
-        if doc.exists:
-            ref = doc.to_dict()
-            for d in ref:
-                if (d == param):
-                    userloggedouttime = ref[d]
-                    currentutctime = datetime.utcnow()
 
-                    parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
-                    parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y %H:%M:%S")
+#SUBRACT DATES
+        # a_date = datetime.utcnow()
+        # dd = timedelta(days=90)
+        #
+        # v =a_date - dd
+        # print(a_date - dd)
 
-                    finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y %H:%M:%S")
-                    finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y %H:%M:%S")
-                    dt_string = finalutcnowtime - finaluserloggedouttime
+#TO DELETE A FIELD FROM FIREBASE FIRESTORE
+        # doc_ref.update({
+        #             'date_time_Now': DELETE_FIELD,
+        #     })
 
-                    days, seconds = dt_string.days, dt_string.seconds
-                    hours = days * 24 + seconds // 3600
-                    if hours == 0:
-                        minutes = (seconds % 3600) // 60
-                        print(minutes)
-                    else:
-                        minutes = (hours * 60) + (seconds % 3600) // 60
-                        print(minutes)
-                    seconds = seconds % 60
-                    ret['DAYS'] = days
-                    ret['HOURS'] = hours
-                    ret['MINUTES'] = minutes
-                    ret['SECONDS'] = seconds
-        return ret
+
+##TO CHANGE VALUES IN FIREBASE
+        # database_2 = firestore.client()
+        # all_users_ref_2 = database_2.collection(u'players').stream()
+        # for users in all_users_ref_2:
+        #     # print(u'{} => {}'.format(users.id, users.to_dict()))
+        #     # print(users.id)
+        #     print(users.id)
+        #     # if u == 'last_refill_time':
+        #     r = db.collection('players').document(users.id)
+        #     r
+
+#TO GET LOGGED VALUE IN DESIRED FORMAT
+        # ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
+        # if doc.exists:
+        #     ref = doc.to_dict()
+        #     for d in ref:
+        #         if (d == param):
+        #             userloggedouttime = ref[d]
+        #             currentutctime = datetime.utcnow()
+        #
+        #             parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y %H:%M:%S")
+        #             parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y %H:%M:%S")
+        #
+        #             finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y %H:%M:%S")
+        #             finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y %H:%M:%S")
+        #             dt_string = finalutcnowtime - finaluserloggedouttime
+        #
+        #             days, seconds = dt_string.days, dt_string.seconds
+        #             hours = days * 24 + seconds // 3600
+        #             if hours == 0:
+        #                 minutes = (seconds % 3600) // 60
+        #                 print(minutes)
+        #             else:
+        #                 minutes = (hours * 60) + (seconds % 3600) // 60
+        #                 print(minutes)
+        #             seconds = seconds % 60
+        #             ret['DAYS'] = days
+        #             ret['HOURS'] = hours
+        #             ret['MINUTES'] = minutes
+        #             ret['SECONDS'] = seconds
+        # return ret
 
 # async def on_what_day(self, sid, info):
     #     if sid in self.connectedusers:
