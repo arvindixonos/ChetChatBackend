@@ -804,7 +804,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
     async def on_debug_function(self, sid, info):
         retVal = info["Value"]
-        print("MAIN MOMO: User: DEBUG TEXT".format(self.getusername(sid), retVal))
+        print("MAIN MOMO: User: DEBUG TEXT: ", retVal)
+        # print("MAIN MOMO: User: DEBUG TEXT: ".format(self.getusername(sid), retVal))
         pass
 
     def update_loggout_time(self, sid):
@@ -853,6 +854,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         loggedoutparms = info['lastloggedouttime']
         timedetails = {}
         if sid in self.connectedusers:
+            print('Check For Daily Reward')
             timedetails = self.get_difference_between_loggout_time(self.connectedusers[sid]['userid'], loggedoutparms)
             await self.sio.emit('check_for_daily_rewards', data=timedetails, room=sid)
         pass
@@ -861,6 +863,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         lastrefillparams = info['lastrefill']
         timedetails = {}
         if sid in self.connectedusers:
+            print('Check For Heart Timer')
             timedetails = self.get_difference_between_last_heart_claimed_time(self.connectedusers[sid]['userid'], 'last_refill_time')
             print(timedetails)
             await self.sio.emit('update_heart_count', data=timedetails, room=sid)
@@ -967,18 +970,35 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         # doc_ref.update({
         #             'date_time_Now': DELETE_FIELD,
         #     })
+        # keys = ['coins','crystals','daily_login_count','daily_reward_available','gender','heart','highscore','is_new_player','last_refill_time','local_point','logged_out_time','mana'
+        #         ,'membership','name','national_point','onetime_mb_bronze','onetime_mb_gold','onetime_mb_silver','onetime_mb_normal','profileimageID','playerID']
+        #
+        # print(keys)
+        # print(len(keys))
+# TO CHANGE VALUES IN FIREBASE
+#         param ='profileimageID'
+#         database_2 = firestore.client()
+#         all_users_ref_2 = database_2.collection(u'players').stream()
+#         for users in all_users_ref_2:
+#             # print(u'{} => {}'.format(users.id, users.to_dict()))
+#             #print(users.id)
+#             r = db.collection('players').document(users.id)
+#             doc = r.get()
+#             for i in keys:
+#                 if i not in doc.to_dict():
+#                     # print(i)
+#                     # r.update({
+#                     #         'is_new_player': 'No',
+#                     #             })
+#                     print('Need Update: ', users.id)
+#                 #     print('yes')
+#                 # else:
+#                 #
+#                 #     # r.update({
+#                 #     #             param: 0,
+#                 #     #     })
 
 
-##TO CHANGE VALUES IN FIREBASE
-        # database_2 = firestore.client()
-        # all_users_ref_2 = database_2.collection(u'players').stream()
-        # for users in all_users_ref_2:
-        #     # print(u'{} => {}'.format(users.id, users.to_dict()))
-        #     # print(users.id)
-        #     print(users.id)
-        #     # if u == 'last_refill_time':
-        #     r = db.collection('players').document(users.id)
-        #     r
 
 #TO GET LOGGED VALUE IN DESIRED FORMAT
         # ret = {'DAYS': 0, 'HOURS': 0, 'MINUTES': 0, 'SECONDS': 0}
