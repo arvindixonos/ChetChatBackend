@@ -420,10 +420,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.searchinguserforonevsall[sid] = findinfos
         await self.send_one_vs_all_searching_count()
 
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 1:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 4:
             users = []
             for user in self.searchinguserforonevsall:
-                if len(users) < 2:
+                if len(users) < 5:
                     users.append(user)
 
             for user in users:
