@@ -396,8 +396,14 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             self.connectedusers[users[0]]['ingame'] = True
             self.connectedusers[users[1]]['assignedsessionid'] = sessionid
             self.connectedusers[users[1]]['ingame'] = True
-            await self.sio.emit('game_found', data=sessioninfo, room=users[0])
-            await self.sio.emit('game_found', data=sessioninfo, room=users[1])
+            retvaluser1 = {}
+            retvaluser2 = {}
+
+            retvaluser1[user[1]] = sessioninfo[user[1]]
+            retvaluser2[user[0]] = sessioninfo[user[0]]
+
+            await self.sio.emit('game_found_national', data=retvaluser1, room=users[0])
+            await self.sio.emit('game_found_national', data=retvaluser2, room=users[1])
         pass
 
     async def on_find_game_two_vs_two(self, sid, findinfos):
@@ -551,12 +557,37 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                                                       user2name=user2name)
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
 
-        self.activegamesessions[sessionid] = gamesessioninstance
+        # for user in users:
+        #     print('MAIN MOMO:User: {}'.format(self.getusername(user)))
+        #     print('user sid: ', user)
+        #     print('user id: ', self.connectedusers[user]['userid'])
+        #     print('user name: ', self.connectedusers[user]['name'])
+
+        tempval = {'userid': '', 'username': '', 'gender': 0, 'membership': 3, 'profileid': 0}
         retval = {}
-        retval['user1id'] = user1id
-        retval['user2id'] = user2id
-        retval['user1name'] = user1name
-        retval['user2name'] = user2name
+
+        tempval['userid'] = self.connectedusers[user1]['userid']
+        tempval['username'] = self.connectedusers[user1]['name']
+        tempval['gender'] = self.connectedusers[user1]['gender']
+        tempval['membership'] = self.connectedusers[user1]['membership']
+        tempval['profileid'] = self.connectedusers[user1]['profileid']
+
+        retval[user1] = dict(tempval)
+
+        tempval['userid'] = self.connectedusers[user2]['userid']
+        tempval['username'] = self.connectedusers[user2]['name']
+        tempval['gender'] = self.connectedusers[user2]['gender']
+        tempval['membership'] = self.connectedusers[user2]['membership']
+        tempval['profileid'] = self.connectedusers[user2]['profileid']
+
+        retval[user2] = dict(tempval)
+
+        self.activegamesessions[sessionid] = gamesessioninstance
+
+        # retval['user1id'] = user1id
+        # retval['user2id'] = user2id
+        # retval['user1name'] = user1name
+        # retval['user2name'] = user2name
         retval['sessionid'] = sessionid
         return retval
 
