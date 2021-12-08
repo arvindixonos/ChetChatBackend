@@ -399,8 +399,19 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             retvaluser1 = {}
             retvaluser2 = {}
 
-            retvaluser1[user[1]] = sessioninfo[user[1]]
-            retvaluser2[user[0]] = sessioninfo[user[0]]
+            retvaluser1 = dict(sessioninfo)
+            retvaluser2 = dict(sessioninfo)
+
+            if users[0] in retvaluser1:
+                retvaluser1.pop(users[0])
+
+            if users[1] in retvaluser2:
+                retvaluser2.pop(users[1])
+
+            print(retvaluser1)
+            print(users[0])
+            print(retvaluser2)
+            print(users[1])
 
             await self.sio.emit('game_found_national', data=retvaluser1, room=users[0])
             await self.sio.emit('game_found_national', data=retvaluser2, room=users[1])
