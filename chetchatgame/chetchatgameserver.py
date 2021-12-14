@@ -867,6 +867,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             if gamesession.getgamemode() == state.GameState.national:
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                self.remove_active_game_session(sessionid)
                 for user in sessioncompleteresult:
                     if user in self.connectedusers:
                         await self.sio.emit('game_over', data=sessionresult, room=user)
