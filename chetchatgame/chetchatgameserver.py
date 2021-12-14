@@ -236,6 +236,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             # print('Getting Info')
             targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
+            print('MOMOMAIN: User',self.connectedusers[sid]['name'])
+            print(self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
             maxlocaldistance = self.connectedusers[sid]['maxlocaldistance']
             sorteddict = {}
             returnusersdict = {}
