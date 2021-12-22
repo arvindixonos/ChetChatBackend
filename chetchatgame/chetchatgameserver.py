@@ -10,6 +10,7 @@ from chetchatgame import gamesessionnational
 import collections
 from chetchatgame import playerstates as state
 from datetime import datetime, timezone, timedelta
+from chetchatgame import gameoverrewarddetails as endreward
 from google.cloud.firestore_v1.transforms import DELETE_FIELD
 import calendar
 
@@ -30,7 +31,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
         # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
-        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1','last_refill_time'))
+        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1', 'last_refill_time'))
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -192,7 +193,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
     # GAME SERVER
     def update_heart_on_disconnect(self, userid):
         val = 1
-        self.set_value_in_db(userid, 'heart', val)
+        self.set_heart_value_in_db(userid, 'heart', val)
 
 
     async def on_update_membership(self, sid, info):
@@ -236,8 +237,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             # print('Getting Info')
             targetlatlon = (self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
-            print('MOMOMAIN: User',self.connectedusers[sid]['name'])
-            print(self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
+            print('MOMOMAIN: User', self.connectedusers[sid]['name'])
+            # print(self.connectedusers[sid]['lat'], self.connectedusers[sid]['lon'])
             maxlocaldistance = self.connectedusers[sid]['maxlocaldistance']
             sorteddict = {}
             returnusersdict = {}
@@ -257,7 +258,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                             sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)] = dict(
                                 locationdict)
                             print("Added")
-                            print(sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)])
+                            # print(sorteddict[self.calculatedistancebetweenlocations(targetlatlon, otherlatlon)])
             if sorteddict:
                 i = 0
                 sorteddict = collections.OrderedDict(sorted(sorteddict.items()))
@@ -456,10 +457,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.searchinguserforonevsall[sid] = findinfos
         await self.send_one_vs_all_searching_count()
 
-        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 4:
+        if self.searchinguserforonevsall is not None and len(self.searchinguserforonevsall.keys()) > 2:
             users = []
             for user in self.searchinguserforonevsall:
-                if len(users) < 5:
+                if len(users) < 3:
                     users.append(user)
 
             for user in users:
@@ -467,13 +468,17 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             sessioninfo = self.createonevsallgamesession(users)
             sessionid = sessioninfo['sessionid']
+            res = list(sessioninfo.keys())#.index(find_key)
 
             for user in users:
                 self.connectedusers[user]['assignedsessionid'] = sessionid
                 self.connectedusers[user]['ingame'] = True
 
+            find_key = 'Germany'
             for user in users:
                 retsessioninfo = dict(sessioninfo)
+                retsessioninfo['coloridx'] = res.index(user)
+                print(retsessioninfo)
                 if user in retsessioninfo:
                     retsessioninfo.pop(user)
                 await self.sio.emit('one_vs_all_game_found', data=retsessioninfo, room=user)
@@ -865,6 +870,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
                 for user in sessioncompleteresult:
                     if user in self.connectedusers:
+                        self.update_resource_after_match(user, sessionresult['winneruserid'], 'local_point')
                         await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.national:
@@ -872,6 +878,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 self.remove_active_game_session(sessionid)
                 for user in sessioncompleteresult:
                     if user in self.connectedusers:
+                        self.update_resource_after_match(user, sessionresult['winneruserid'], 'national_point')
                         await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
@@ -889,6 +896,62 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     if user in self.connectedusers:
                         # opponentname = gamesession.getopponentname(user)
                         self.connectedusers[user]['assignedsessionid'] = ''
+                        self.update_resource_after_match(user, sessionresult['winneruserid'], 'national_point')
+                        # await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
+                        await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
+        pass
+
+    async def on_force_complete_session(self, sid, sessionid):
+        print("MAIN MOMO: FORCE SESSION COMPLETE User: {} SessionID: {}".format(self.getusername(sid), sessionid))
+        if sessionid not in self.activegamesessions:
+            print("MAIN MOMO: FORCE SESSION NOT FOUND")
+            if sid in self.connectedusers:
+                await self.sio.emit('cancel_session_complete_check', room=sid)
+            return
+        gamesession = self.activegamesessions[sessionid]
+        sessioncompleteresult = gamesession.forcecompletesession()
+
+        if sessioncompleteresult is not None:
+            print("MAIN MOMO: Removing active User: {} SessionID: {}".format(self.getusername(sid), sessionid))
+
+            for user in sessioncompleteresult:
+                if user in self.connectedusers:
+                    self.connectedusers[user]['ingame'] = False
+                    self.connectedusers[user]['receivedrequest'] = False
+
+            sessionresult = gamesession.getsessionresult()
+
+            if gamesession.getgamemode() == state.GameState.local:
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                for user in sessioncompleteresult:
+                    if user in self.connectedusers:
+                        self.update_resource_after_match(user,sessionresult['winneruserid'],'local_point')
+                        await self.sio.emit('game_over', data=sessionresult, room=user)
+
+            if gamesession.getgamemode() == state.GameState.national:
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                self.remove_active_game_session(sessionid)
+                for user in sessioncompleteresult:
+                    if user in self.connectedusers:
+                        self.update_resource_after_match(user, sessionresult['winneruserid'], 'national_point')
+                        await self.sio.emit('game_over', data=sessionresult, room=user)
+
+            if gamesession.getgamemode() == state.GameState.twovstwo:
+                self.remove_active_game_session(sessionid)
+                print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
+                for user in sessioncompleteresult:
+                    if user in self.connectedusers:
+                        self.connectedusers[user]['assignedsessionid'] = ''
+                        await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
+
+            if gamesession.getgamemode() == state.GameState.onevsall:
+                self.remove_active_game_session(sessionid)
+                print("MAIN MOMO: The Winner is User: {}".format(self.getusername(sessionresult['winnersid'])))
+                for user in sessioncompleteresult:
+                    if user in self.connectedusers:
+                        # opponentname = gamesession.getopponentname(user)
+                        self.connectedusers[user]['assignedsessionid'] = ''
+                        self.update_resource_after_match(user, sessionresult['winneruserid'], 'national_point')
                         # await self.sio.emit('one_vs_all_opponent_name', data=opponentname, room=user)
                         await self.sio.emit('game_over_one_vs_all', data=sessionresult, room=user)
         pass
@@ -1030,7 +1093,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     ret['MEMBERSHIP'] = ref[d]
         return ret
 
-    def set_value_in_db(self, userid, param, value):
+    def set_heart_value_in_db(self, userid, param, value):
         db = firestore.client()
         doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
@@ -1051,6 +1114,48 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     doc_ref.update({
                         param: count,
                     })
+
+    def set_value_in_db_result(self, userid, param, value):
+        db = firestore.client()
+        doc_ref = db.collection('players').document(userid)
+        doc = doc_ref.get()
+        count = 0
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if d == param:
+                    count = ref[d]
+            count = count + value
+            if count > 0:
+                doc_ref.update({
+                    param: count,
+                    })
+            else:
+                doc_ref.update({
+                    param: 0,
+                })
+
+    def update_resource_after_match(self, sid, winnerid, param):
+        if sid in self.connectedusers:
+            if self.connectedusers[sid]['userid'] == winnerid:
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'coins',
+                                            endreward.winningcoins(self.connectedusers[sid]['membership']))
+                if param == 'local_point':
+                    self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'local_point',
+                                                endreward.localwinningpoints(self.connectedusers[sid]['membership']))
+                if param == 'national_point':
+                    self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
+                                                endreward.nationalwinningpoints(self.connectedusers[sid]['membership']))
+            else:
+                self.set_heart_value_in_db(self.connectedusers[sid]['userid'], 'heart', 1)
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'coins',
+                                            endreward.losingcoins(self.connectedusers[sid]['membership']))
+                if param == 'local_point':
+                    self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'local_point',
+                                                endreward.locallosingpoints(self.connectedusers[sid]['membership']))
+                if param == 'national_point':
+                    self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
+                                                endreward.nationallosingpoints(self.connectedusers[sid]['membership']))
 
     def get_value_from_db(self, userid, param):
         db = firestore.client()
@@ -1076,28 +1181,62 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         # print(keys)
         # print(len(keys))
         print(self.get_difference_between_loggout_time(userid, 'logged_out_time'))
+        # r = db.collection('players').document(userid)
+        # r.update({
+        #         'power_cracker': 1,
+        #         'power_rocket': 2,
+        #         'power_duck': 3,
+        #         'power_ufo': 4,
+        #         'power_cracker_idx': 5,
+        #         'power_balloon': 6,
+        #         'power_sweep': 7,
+        #         'power_pick_sweep': 8,
+        #         'power_mastermind': 9,
+        #         'power_dragon': 10,
+        #         'power_voltage': 11,
+        #         'power_cobra': 12,
+        #         'power_wolly': 13,
+        #         'power_doc_color': 14,
+        #          })
 # TO CHANGE VALUES IN FIREBASE
         param ='profileimageID'
         # database_2 = firestore.client()
         # all_users_ref_2 = database_2.collection(u'players').stream()
         # for users in all_users_ref_2:
-        #     # print(u'{} => {}'.format(users.id, users.to_dict()))
-        #     #print(users.id)
-        #     r = db.collection('players').document(users.id)
-        #     doc = r.get()
-        #     if doc.exists:
-        #         ref = doc.to_dict()
-        #         for d in ref:
-        #             if (d == 'logged_out_time'):
-        #                 userloggedouttime = ref[d]
-        #                 currentutctime = datetime.utcnow()
-        #
-        #                 parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y")
-        #                 parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y")
-        #
-        #                 if parseduserloggouttime == parsedcurrentutctime:
-        #                     print(ref['name'])
-        #                     print(ref['playerID'])
+            # print(u'{} => {}'.format(users.id, users.to_dict()))
+            #print(users.id)
+            # r = db.collection('players').document(users.id)
+            # r.update({
+            #     'power_cracker': 0,
+            #     'power_rocket': 0,
+            #     'power_duck': 0,
+            #     'power_ufo': 0,
+            #     'power_cracker_idx': 0,
+            #     'power_balloon': 0,
+            #     'power_sweep': 0,
+            #     'power_pick_sweep': 0,
+            #     'power_mastermind': 0,
+            #     'power_dragon': 0,
+            #     'power_voltage': 0,
+            #     'power_cobra': 0,
+            #     'power_wolly': 0,
+            #     'power_doc_color': 0,
+            # })
+            # print('Updated')
+            # doc = r.get()
+            # if doc.exists:
+            #     ref = doc.to_dict()
+            #     for d in ref:
+            #         if (d == 'logged_out_time'):
+            #             userloggedouttime = ref[d]
+            #             currentutctime = datetime.utcnow()
+            #
+            #             parseduserloggouttime = userloggedouttime.strftime("%d/%m/%Y")
+            #             parsedcurrentutctime = currentutctime.strftime("%d/%m/%Y")
+            #
+            #             if parseduserloggouttime == parsedcurrentutctime:
+            #                 print(ref['name'])
+            #                 print(ref['playerID'])
 
 #             print(users.to_dict())
 #             for i in keys:

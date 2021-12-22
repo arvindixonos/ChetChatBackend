@@ -18,10 +18,10 @@ class OneVsAllGameSession:
                               'score': 0, 'bot': False},
                           2: {'claimed': False, 'complete': False, 'started': False,
                               'score': 0, 'bot': False},
-                          3: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False},
-                          4: {'claimed': False, 'complete': False, 'started': False,
-                              'score': 0, 'bot': False}
+                          # 3: {'claimed': False, 'complete': False, 'started': False,
+                          #     'score': 0, 'bot': False},
+                          # 4: {'claimed': False, 'complete': False, 'started': False,
+                          #     'score': 0, 'bot': False}
                           }
 
         self.sessionComplete = False
@@ -84,6 +84,13 @@ class OneVsAllGameSession:
             if self.userinfos[key]['complete'] is False:
                 return False
         return True
+
+    def forcecompletesession(self):
+        keys = self.userinfos.keys()
+        for key in keys:
+            if self.userinfos[key]['complete'] is False:
+                self.userinfos[key]['complete'] = True
+        return self.getsessionusers()
 
     def claimsession(self, userid):
         self.userinfos[userid]['claimed'] = True
