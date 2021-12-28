@@ -90,7 +90,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                 if gamesession.getgamemode() == state.GameState.local:
                     if gamesession.didallcompletesession() is False:
-                        self.update_heart_on_disconnect(userinfo['userid'])
+                        self.update_resource_on_disconnect_while_ingame(userinfo, "local_point")
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
@@ -101,7 +101,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                 if gamesession.getgamemode() == state.GameState.national:
                     if gamesession.didallcompletesession() is False:
-                        self.update_heart_on_disconnect(userinfo['userid'])
+                        self.update_resource_on_disconnect_while_ingame(userinfo, "national_point")
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             print("MAIN MOMO: Calling session complete for User: {} because the other player left: {}"
@@ -110,7 +110,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                 if gamesession.getgamemode() == state.GameState.twovstwo:
                     if gamesession.didallcompletesession() is False:
-                        self.update_heart_on_disconnect(userinfo['userid'])
+                        self.update_resource_on_disconnect_while_ingame(userinfo, "national_point")
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             if gamesession.completedsession(user):
@@ -128,7 +128,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
                 if gamesession.getgamemode() == state.GameState.onevsall:
                     if gamesession.didallcompletesession() is False:
-                        self.update_heart_on_disconnect(userinfo['userid'])
+                        self.update_resource_on_disconnect_while_ingame(userinfo, "national_point")
                     for user in users:
                         if user != sid and user in self.connectedusers:
                             if gamesession.completedsession(user):
@@ -446,7 +446,11 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 self.connectedusers[user]['ingame'] = True
 
             for user in users:
-                await self.sio.emit('two_vs_two_game_found', data=sessioninfo, room=user)
+                retsessioninfo = dict(sessioninfo)
+                retsessioninfo['teamname'] = self.activegamesessions[sessionid].getteamname(user)
+                if user in retsessioninfo:
+                    retsessioninfo.pop(user)
+                await self.sio.emit('two_vs_two_game_found', data=retsessioninfo, room=user)
         pass
 
     async def on_find_game_one_vs_all(self, sid, findinfos):
@@ -468,13 +472,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
 
             sessioninfo = self.createonevsallgamesession(users)
             sessionid = sessioninfo['sessionid']
-            res = list(sessioninfo.keys())#.index(find_key)
+            res = list(sessioninfo.keys())
 
             for user in users:
                 self.connectedusers[user]['assignedsessionid'] = sessionid
                 self.connectedusers[user]['ingame'] = True
 
-            find_key = 'Germany'
             for user in users:
                 retsessioninfo = dict(sessioninfo)
                 retsessioninfo['coloridx'] = res.index(user)
@@ -613,12 +616,23 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         sessionid = users[0] + users[1]
         userid = []
         username = []
+        retval = {}
+        tempval = {'userid': '', 'username': '', 'gender': 0, 'membership': 3, 'profileid': 0, 'teamname':''}
         print('MAIN MOMO: Creating game session for Users:')
         for user in users:
             print('MAIN MOMO:User: {}'.format(self.getusername(user)))
             print('user sid: ', user)
             print('user id: ', self.connectedusers[user]['userid'])
             print('user name: ', self.connectedusers[user]['name'])
+
+            tempval['userid'] = self.connectedusers[user]['userid']
+            tempval['username'] = self.connectedusers[user]['name']
+            tempval['gender'] = self.connectedusers[user]['gender']
+            tempval['membership'] = self.connectedusers[user]['membership']
+            tempval['profileid'] = self.connectedusers[user]['profileid']
+
+            retval[user] = dict(tempval)
+
             userid.append(self.connectedusers[user]['userid'])
             username.append(self.connectedusers[user]['name'])
 
@@ -627,11 +641,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         print("MAIN MOMO: Adding active session: {}".format(sessionid))
 
         self.activegamesessions[sessionid] = gamesessioninstance
-
-        retval = {}
-        for user in range(len(users)):
-            retval[user] = {'userid': userid[user]}
-            retval[user] = {'username': username[user]}
+        #
+        for user in users:
+            retval[user]['teamname'] = gamesessioninstance.getteamname(user)
 
         retval['sessionid'] = sessionid
         return retval
@@ -698,8 +710,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if claimresult is not None:
             for user in claimresult:
                 print('Starting session', user)
-                teamname['teamname'] = gamesession.getteamname(user)
-                await self.sio.emit('start_session_two_vs_two', data=teamname, room=user)
+                # teamname['teamname'] = gamesession.getteamname(user)
+                await self.sio.emit('start_session_two_vs_two', room=user)
+                # await self.sio.emit('start_session_two_vs_two', data=teamname, room=user)
 
     async def on_claim_one_vs_all_game_session(self, sid, gamesessionid):
         print("MAIN MOMO: Claiming game session for User: {}".format(self.getusername(sid)))
@@ -882,10 +895,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
-                self.remove_active_game_session(sessionid)
+                active_session = self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
                     if user in self.connectedusers:
+                        self.update_resource_after_match_for_party(user, sessionresult['winningteam'],
+                                                                   active_session.getteamname(user))
                         self.connectedusers[user]['assignedsessionid'] = ''
                         await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
 
@@ -937,11 +952,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                         await self.sio.emit('game_over', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.twovstwo:
-                self.remove_active_game_session(sessionid)
+                active_session = self.remove_active_game_session(sessionid)
                 print("MAIN MOMO: The Winning Team is: {}".format(sessionresult['winningteam']))
                 for user in sessioncompleteresult:
                     if user in self.connectedusers:
                         self.connectedusers[user]['assignedsessionid'] = ''
+                        self.update_resource_after_match_for_party(user, sessionresult['winningteam'], active_session.getteamname(user))
                         await self.sio.emit('game_over_two_vs_two', data=sessionresult, room=user)
 
             if gamesession.getgamemode() == state.GameState.onevsall:
@@ -1006,7 +1022,6 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         if sid in self.connectedusers:
             if self.connectedusers[sid]['assignedsessionid']:
                 gamesession = self.remove_active_game_session(self.connectedusers[sid]['assignedsessionid'])
-                print(gamesession)
                 if gamesession:
                     await self.turn_off_play_again(gamesession.getopponentsid(sid))
                 self.connectedusers[sid]['assignedsessionid'] = ''
@@ -1146,6 +1161,8 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if param == 'national_point':
                     self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
                                                 endreward.nationalwinningpoints(self.connectedusers[sid]['membership']))
+
+                print("MAIN MOMO: Updating {} Resource: Player Won".format((self.connectedusers[sid]['name'])))
             else:
                 self.set_heart_value_in_db(self.connectedusers[sid]['userid'], 'heart', 1)
                 self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'coins',
@@ -1156,6 +1173,36 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                 if param == 'national_point':
                     self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
                                                 endreward.nationallosingpoints(self.connectedusers[sid]['membership']))
+                print("MAIN MOMO: Updating {} Resource: Player Lost".format((self.connectedusers[sid]['name'])))
+
+
+    def update_resource_after_match_for_party(self, sid, winnerid, param):
+        if sid in self.connectedusers:
+            if param == winnerid:
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'coins',
+                                            endreward.winningcoins(self.connectedusers[sid]['membership']))
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
+                                            endreward.nationalwinningpoints(self.connectedusers[sid]['membership']))
+                print("MAIN MOMO: Updating {} Resource: Player Team Won".format((self.connectedusers[sid]['name'])))
+            else:
+                self.set_heart_value_in_db(self.connectedusers[sid]['userid'], 'heart', 1)
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'coins',
+                                            endreward.losingcoins(self.connectedusers[sid]['membership']))
+                self.set_value_in_db_result(self.connectedusers[sid]['userid'], 'national_point',
+                                            endreward.nationallosingpoints(self.connectedusers[sid]['membership']))
+                print("MAIN MOMO: Updating {} Resource: Player Team Lost".format((self.connectedusers[sid]['name'])))
+
+    def update_resource_on_disconnect_while_ingame(self, userinfo, param):
+        self.set_heart_value_in_db(userinfo['userid'], 'heart', 1)
+        self.set_value_in_db_result(userinfo['userid'], 'coins',
+                                    endreward.losingcoins(userinfo['membership']))
+        if param == 'local_point':
+            self.set_value_in_db_result(userinfo['userid'], 'local_point',
+                                        endreward.locallosingpoints(userinfo['membership']))
+        if param == 'national_point':
+            self.set_value_in_db_result(userinfo['userid'], 'national_point',
+                                        endreward.nationallosingpoints(userinfo['membership']))
+        print("MAIN MOMO: Updating {} Resource: Due To Disconnect While In Game".format(userinfo['name']))
 
     def get_value_from_db(self, userid, param):
         db = firestore.client()
