@@ -31,7 +31,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
         # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
-        print(self.get_value_from_db('fuuY8wZyDQPSrbLVG5GxqDQm6an1', 'last_refill_time'))
+        print(self.get_value_from_db('Ai1BZZxIAT2zh9aqCVL3', 'last_refill_time'))
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -1208,7 +1208,10 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         db = firestore.client()
         doc_ref = db.collection('players').document(userid)
         doc = doc_ref.get()
-        print(doc_ref)
+        doc_ref.update({
+                 'power_cracker': 0,
+        })
+        print(doc)
         retval = ''
 
 #SUBRACT DATES
