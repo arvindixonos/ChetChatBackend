@@ -30,8 +30,9 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         socketio.AsyncNamespace.__init__(self, namespace=namespace)
         self.cred = credentials.Certificate("serviceaccountkey.json")
         firebase_admin.initialize_app(self.cred)
+        print(self.get_remaining_subscription_days('F35Dhpnj22anD8xb9LWGaNxpdA92','subcription_activated_date'))
         # v = self.get_membership("fuuY8wZyDQPSrbLVG5GxqDQm6an1")
-        print(self.get_value_from_db('Ai1BZZxIAT2zh9aqCVL3', 'last_refill_time'))
+        # print(self.get_value_from_db('Ai1BZZxIAT2zh9aqCVL3', 'last_refill_time'))
 
     @classmethod
     def configure(cls, sio: socketio.Server):
@@ -174,6 +175,7 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             userdict['profileid'] = 0
             userdict['membership'] = 3
             userdict['gender'] = 0
+            userdict['flag'] = 0
             self.connectedusers[sid] = userdict
             print("MAIN MOMO: Added User to MOMO: {}".format(self.getusername(sid)))
         else:
@@ -206,6 +208,12 @@ class ChetChatGameServer(socketio.AsyncNamespace):
         value = info['gender']
         if sid in self.connectedusers:
             self.connectedusers[sid]['gender'] = value
+        pass
+
+    async def on_update_flag(self, sid, info):
+        value = info['flag']
+        if sid in self.connectedusers:
+            self.connectedusers[sid]['flag'] = value
         pass
 
     async def on_set_profile_id(self, sid, data):
@@ -1047,6 +1055,16 @@ class ChetChatGameServer(socketio.AsyncNamespace):
             await self.sio.emit('update_heart_count', data=timedetails, room=sid)
         pass
 
+    async def on_get_subscription_details(self, sid, info):
+        lastrefillparams = info['subscription']
+        print(lastrefillparams)
+        timedetails = {}
+        if sid in self.connectedusers:
+            timedetails = self.get_remaining_subscription_days(self.connectedusers[sid]['userid'], lastrefillparams)
+            print(timedetails)
+            await self.sio.emit('fetch_subscription_details', data=timedetails, room=sid)
+        pass
+
     def remove_active_game_session(self, sessionid):
         if sessionid in self.activegamesessions:
             print('MOMO: REMOVING ACTIVE GAME SESSION {}'.format(sessionid))
@@ -1069,6 +1087,26 @@ class ChetChatGameServer(socketio.AsyncNamespace):
                     finaluserloggedouttime = datetime.strptime(parseduserloggouttime, "%d/%m/%Y")
                     finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y")
                     dt_string = finalutcnowtime - finaluserloggedouttime
+                    days, seconds = dt_string.days, dt_string.seconds
+                    ret['DAYS'] = days
+        return ret
+
+    def get_remaining_subscription_days(self, userid, param):
+        db = firestore.client()
+        doc_ref = db.collection('players').document(userid)
+        doc = doc_ref.get()
+        ret = {'DAYS': 0}
+        if doc.exists:
+            ref = doc.to_dict()
+            for d in ref:
+                if (d == param):
+                    membershippurchaseddate = ref[d]
+                    currentutcdate = datetime.utcnow()
+                    parseduserloggouttime = membershippurchaseddate.strftime("%d/%m/%Y")
+                    parsedcurrentutctime = currentutcdate.strftime("%d/%m/%Y")
+                    finalusermembershippurchaseddate = datetime.strptime(parseduserloggouttime, "%d/%m/%Y")
+                    finalutcnowtime = datetime.strptime(parsedcurrentutctime, "%d/%m/%Y")
+                    dt_string = finalutcnowtime - finalusermembershippurchaseddate
                     days, seconds = dt_string.days, dt_string.seconds
                     ret['DAYS'] = days
         return ret
